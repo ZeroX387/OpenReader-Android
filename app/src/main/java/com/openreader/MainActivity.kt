@@ -10,6 +10,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
+import android.text.Html
+import android.text.StaticLayout
+import android.text.TextPaint
+import android.graphics.Typeface
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -77,6 +86,34 @@ private fun readTxt(context: Context, uri: Uri): String {
     }
 }
 
+private fun cleanBookText(raw: String): String {
+    if (!Regex("<(?:p|br|div|html|body)\\b", RegexOption.IGNORE_CASE).containsMatchIn(raw)) return raw
+    return Html.fromHtml(raw, Html.FROM_HTML_MODE_LEGACY).toString()
+        .replace(Regex("\\n{3,}"), "\\n\\n").trim()
+}
+
+private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float): List<Int> {
+    if (text.isEmpty() || widthPx <= 0 || heightPx <= 0) return listOf(0)
+    val paint = TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = fontPx
+        typeface = Typeface.DEFAULT
+    }
+    val result = mutableListOf(0)
+    var offset = 0
+    while (offset < text.length) {
+        val remaining = text.substring(offset)
+        val layout = StaticLayout.Builder.obtain(remaining, 0, remaining.length, paint, widthPx)
+            .setIncludePad(false).setLineSpacing(fontPx * 0.5f, 1f).build()
+        var lastLine = 0
+        while (lastLine + 1 < layout.lineCount && layout.getLineBottom(lastLine + 1) <= heightPx) lastLine++
+        val next = (offset + layout.getLineEnd(lastLine).coerceAtLeast(1)).coerceAtMost(text.length)
+        if (next <= offset) break
+        offset = next
+        if (offset < text.length) result.add(offset)
+    }
+    return result
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OpenReaderApp() {
@@ -91,7 +128,7 @@ private fun OpenReaderApp() {
 
     fun openBook(book: LocalBook) {
         try {
-            content = readTxt(context, Uri.parse(book.uri))
+            content = cleanBookText(readTxt(context, Uri.parse(book.uri)))
             currentBook = book
             error = null
         } catch (e: Exception) {
@@ -160,22 +197,63 @@ private fun OpenReaderApp() {
             Column(Modifier.fillMaxSize().padding(padding)) {
                 if (currentBook != null) {
                     val book = currentBook!!
-                    val key = "position_" + book.uri.hashCode()
-                    val scroll = remember(book.uri) { androidx.compose.foundation.ScrollState(prefs.getInt(key, 0)) }
-                    LaunchedEffect(scroll, key) {
-                        snapshotFlow { scroll.value }.drop(1).collectLatest { position ->
-                            prefs.edit().putInt(key, position).apply()
+                    val positionKey = "page_char_" + book.uri.hashCode()
+                    var charPosition by remember(book.uri) {
+                        mutableIntStateOf(prefs.getInt(positionKey, 0).coerceAtLeast(0))
+                    }
+                    var showControls by remember(book.uri) { mutableStateOf(false) }
+                    val density = LocalDensity.current
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val widthPx = with(density) { (maxWidth - 36.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 54.dp).roundToPx() }
+                        val fontPx = with(density) { fontSize.sp.toPx() }
+                        val starts = remember(content, widthPx, heightPx, fontPx) {
+                            pageStarts(content, widthPx, heightPx, fontPx)
                         }
-                    }
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Размер текста: ${fontSize.toInt()}", style = MaterialTheme.typography.labelMedium)
-                        TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(12f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A−") }
-                        TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A+") }
-                    }
-                    Column(
-                        Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 18.dp, vertical = 12.dp)
-                    ) {
-                        Text(content, fontSize = fontSize.sp, lineHeight = (fontSize * 1.5f).sp)
+                        val page = (starts.indexOfLast { it <= charPosition }).coerceAtLeast(0)
+                        fun moveTo(index: Int) {
+                            val target = index.coerceIn(0, starts.lastIndex)
+                            charPosition = starts[target]
+                            prefs.edit().putInt(positionKey, charPosition).apply()
+                        }
+                        Column(Modifier.fillMaxSize()) {
+                            if (showControls) {
+                                Row(
+                                    Modifier.fillMaxWidth().height(48.dp),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    TextButton(onClick = {
+                                        fontSize = (fontSize - 1).coerceAtLeast(12f)
+                                        prefs.edit().putFloat("font_size", fontSize).apply()
+                                    }) { Text("A−") }
+                                    Text("Шрифт: ${fontSize.toInt()}")
+                                    TextButton(onClick = {
+                                        fontSize = (fontSize + 1).coerceAtMost(32f)
+                                        prefs.edit().putFloat("font_size", fontSize).apply()
+                                    }) { Text("A+") }
+                                }
+                            }
+                            Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp)) {
+                                Box(Modifier.fillMaxHeight().weight(1f).clickable { moveTo(page - 1) })
+                                Box(Modifier.fillMaxHeight().weight(5f).clickable { showControls = !showControls }) {
+                                    val endChar = if (page + 1 < starts.size) starts[page + 1] else content.length
+                                    Text(
+                                        content.substring(starts[page], endChar),
+                                        fontSize = fontSize.sp,
+                                        lineHeight = (fontSize * 1.5f).sp,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                Box(Modifier.fillMaxHeight().weight(1f).clickable { moveTo(page + 1) })
+                            }
+                            Text(
+                                "${page + 1} / ${starts.size}",
+                                modifier = Modifier.fillMaxWidth().height(30.dp),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
                     }
                 } else {
                     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -187,7 +265,7 @@ private fun OpenReaderApp() {
                             Button(onClick = { picker.launch(arrayOf("text/plain", "text/*", "application/octet-stream")) }) {
                                 Text("+ Добавить TXT-книгу")
                             }
-                            Text("Версия 0.2: чтение TXT. EPUB и другие форматы добавим позже.", style = MaterialTheme.typography.bodySmall)
+                            Text("Версия 0.3: постраничное чтение TXT. EPUB и другие форматы добавим позже.", style = MaterialTheme.typography.bodySmall)
                             if (books.isEmpty()) {
                                 Text("Книг пока нет. Нажмите кнопку выше, чтобы выбрать TXT-файл.")
                             }
