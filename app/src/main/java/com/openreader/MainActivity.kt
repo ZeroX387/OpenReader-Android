@@ -217,31 +217,39 @@ private fun cleanBookText(raw: String): String {
         .replace(Regex("\\n{3,}"), "\n\n").trim()
 }
 
-private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float): List<Int> {
+private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float, anchor: Int): List<Int> {
     if (text.isEmpty() || widthPx <= 0 || heightPx <= 0) return listOf(0)
     val paint = TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         textSize = fontPx
         typeface = Typeface.DEFAULT
     }
-    // Lay out the book only once. Rebuilding a layout for every page caused
-    // quadratic work and could trigger Android's "app isn't responding" dialog.
     val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx)
         .setIncludePad(false)
         .setLineSpacing(fontPx * 0.5f, 1f)
         .build()
-    val result = mutableListOf(0)
-    var pageTop = 0
-    var pageStartLine = 0
-    for (line in 0 until layout.lineCount) {
-        if (layout.getLineBottom(line) - pageTop > heightPx && line > pageStartLine) {
-            val nextLine = line
-            val nextOffset = layout.getLineStart(nextLine)
-            if (nextOffset > result.last()) result.add(nextOffset)
-            pageStartLine = nextLine
-            pageTop = layout.getLineTop(line)
+    if (layout.lineCount == 0) return listOf(0)
+    val anchorLine = layout.getLineForOffset(anchor.coerceIn(0, text.lastIndex))
+    val lineStarts = mutableListOf(anchorLine)
+    var firstLine = anchorLine
+    while (firstLine > 0) {
+        var previous = firstLine - 1
+        while (previous > 0 && layout.getLineBottom(firstLine - 1) - layout.getLineTop(previous - 1) <= heightPx) {
+            previous--
         }
+        firstLine = previous
+        lineStarts.add(0, firstLine)
     }
-    return result
+    var current = anchorLine
+    while (current < layout.lineCount - 1) {
+        var next = current + 1
+        while (next < layout.lineCount && layout.getLineBottom(next) - layout.getLineTop(current) <= heightPx) {
+            next++
+        }
+        if (next >= layout.lineCount) break
+        lineStarts.add(next)
+        current = next
+    }
+    return lineStarts.distinct().map { layout.getLineStart(it) }
 }
 
 // Style chapter titles without modifying the source string or saved character offsets.
@@ -406,9 +414,9 @@ private fun OpenReaderApp() {
                         // doesn't change when the controls are shown or hidden.
                         val heightPx = with(density) { (maxHeight - 30.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
-                        val starts by produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx) {
+                        val starts by produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx, charPosition) {
                             value = withContext(Dispatchers.Default) {
-                                pageStarts(content, widthPx, heightPx, fontPx)
+                                pageStarts(content, widthPx, heightPx, fontPx, charPosition)
                             }
                         }
                         val safePosition = charPosition.coerceIn(0, content.length)
