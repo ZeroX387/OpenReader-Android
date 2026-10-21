@@ -219,10 +219,7 @@ private fun OpenReaderApp() {
                         // doesn't change when the controls are shown or hidden.
                         val heightPx = with(density) { (maxHeight - 78.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
-                        val starts by produceState(
-                            initialValue = listOf(0),
-                            key1 = content, key2 = widthPx, key3 = heightPx, key4 = fontPx
-                        ) {
+                        val starts by produceState(listOf(0), content, widthPx, heightPx, fontPx) {
                             value = withContext(Dispatchers.Default) {
                                 pageStarts(content, widthPx, heightPx, fontPx)
                             }
