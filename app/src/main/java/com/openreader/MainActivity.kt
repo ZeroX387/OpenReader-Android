@@ -87,6 +87,12 @@ private fun saveBooks(context: Context, books: List<LocalBook>) {
         .edit().putString("books", array.toString()).apply()
 }
 
+private fun nameHintDisplayName(context: Context, uri: Uri): String {
+    return context.contentResolver.query(
+        uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null
+    )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+        ?: uri.lastPathSegment.orEmpty()
+}
 private fun nameHintFb2(context: Context, uri: Uri): Boolean {
     val displayName = context.contentResolver.query(
         uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null
@@ -267,12 +273,23 @@ private fun OpenReaderApp() {
         } else {
             content = ""
             try {
-                content = withContext(Dispatchers.IO) {
+                val loaded = withContext(Dispatchers.IO) {
                     if (book.format == "fb2") {
-                        readFb2(context, Uri.parse(book.uri)).let { doc ->
-                            (if (doc.annotation.isNotBlank()) "Аннотация\n\n${doc.annotation}\n\n" else "") + doc.body
+                        val doc = readFb2(context, Uri.parse(book.uri))
+                        val text = (if (doc.annotation.isNotBlank()) "Аннотация\n\n${doc.annotation}\n\n" else "") + doc.body
+                        Pair(text, doc.title)
+                    } else Pair(cleanBookText(readTxt(context, Uri.parse(book.uri))), "")
+                }
+                content = loaded.first
+                if (book.format == "fb2" && loaded.second.isNotBlank()) {
+                    val sourceName = nameHintDisplayName(context, Uri.parse(book.uri)).substringBeforeLast(".")
+                    if (book.title == sourceName) {
+                        val index = books.indexOfFirst { it.uri == book.uri }
+                        if (index >= 0) {
+                            books[index] = book.copy(title = loaded.second)
+                            saveBooks(context, books)
                         }
-                    } else cleanBookText(readTxt(context, Uri.parse(book.uri)))
+                    }
                 }
             } catch (e: Exception) {
                 error = e.message ?: "Не удалось открыть книгу."
@@ -384,6 +401,17 @@ private fun OpenReaderApp() {
                         Column(Modifier.fillMaxSize()) {
                             Box(
                                 Modifier.weight(1f).fillMaxWidth()
+                                    .pointerInput(readyStarts, page) {
+                                        var dragDistance = 0f
+                                        detectHorizontalDragGestures(
+                                            onHorizontalDrag = { _, delta -> dragDistance += delta },
+                                            onDragEnd = {
+                                                if (dragDistance < -60f) moveTo(page + 1)
+                                                else if (dragDistance > 60f) moveTo(page - 1)
+                                                dragDistance = 0f
+                                            }
+                                        )
+                                    }
                                     .pointerInput(readyStarts, page, showControls) {
                                         detectTapGestures { tap ->
                                             when {
