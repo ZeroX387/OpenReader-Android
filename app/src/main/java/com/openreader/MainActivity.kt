@@ -83,6 +83,13 @@ private fun saveBooks(context: Context, books: List<LocalBook>) {
         .edit().putString("books", array.toString()).apply()
 }
 
+private fun nameHintFb2(context: Context, uri: Uri): Boolean {
+    val displayName = context.contentResolver.query(
+        uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null
+    )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+    return (displayName ?: uri.lastPathSegment.orEmpty()).endsWith(".fb2", ignoreCase = true)
+}
+
 private fun readTxt(context: Context, uri: Uri): String {
     val bytes = context.contentResolver.openInputStream(uri)?.use { stream ->
         val output = java.io.ByteArrayOutputStream()
@@ -228,7 +235,8 @@ private fun OpenReaderApp() {
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
     val books = remember { mutableStateListOf<LocalBook>().apply { addAll(loadBooks(context)) } }
     var selectedTab by remember { mutableIntStateOf(0) }
-    var currentBook by remember { mutableStateOf<LocalBook?>(null) }
+    var currentBookUri by rememberSaveable { mutableStateOf<String?>(null) }
+    val currentBook = books.firstOrNull { it.uri == currentBookUri }
     var content by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var editingBook by remember { mutableStateOf<LocalBook?>(null) }
@@ -236,12 +244,27 @@ private fun OpenReaderApp() {
     var fontSize by remember { mutableFloatStateOf(prefs.getFloat("font_size", 19f)) }
 
     fun openBook(book: LocalBook) {
-        try {
-            content = if (book.format == "fb2") readFb2(context, Uri.parse(book.uri)).let { doc -> (if (doc.annotation.isNotBlank()) "Аннотация\\n\\n${doc.annotation}\\n\\n" else "") + doc.body } else cleanBookText(readTxt(context, Uri.parse(book.uri)))
-            currentBook = book
-            error = null
-        } catch (e: Exception) {
-            error = e.message ?: "Не удалось открыть книгу. Попробуйте добавить её заново."
+        currentBookUri = book.uri
+        error = null
+    }
+
+    LaunchedEffect(currentBookUri) {
+        val book = books.firstOrNull { it.uri == currentBookUri }
+        if (book == null) {
+            content = ""
+        } else {
+            content = ""
+            try {
+                content = withContext(Dispatchers.IO) {
+                    if (book.format == "fb2") {
+                        readFb2(context, Uri.parse(book.uri)).let { doc ->
+                            (if (doc.annotation.isNotBlank()) "Аннотация\n\n${doc.annotation}\n\n" else "") + doc.body
+                        }
+                    } else cleanBookText(readTxt(context, Uri.parse(book.uri)))
+                }
+            } catch (e: Exception) {
+                error = e.message ?: "Не удалось открыть книгу."
+            }
         }
     }
 
@@ -252,16 +275,16 @@ private fun OpenReaderApp() {
                     uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
                 val mime = context.contentResolver.getType(uri) ?: ""
-                val isFb2 = mime.contains("fb2", true) || uri.lastPathSegment?.endsWith(".fb2", true) == true
+                val isFb2 = mime.contains("fb2", true) || nameHintFb2(context, uri)
                 val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
                     ?.use { cursor ->
                         if (cursor.moveToFirst()) cursor.getString(0) else null
                     } ?: "Книга TXT"
                 val existing = books.firstOrNull { it.uri == uri.toString() }
-                val fb2Doc = if (isFb2) readFb2(context, uri) else null
-                val proposed = if (existing == null) (fb2Doc?.title?.takeIf { it.isNotBlank() } ?: suggestedTitle(if (isFb2) "" else cleanBookText(readTxt(context, uri)), name)) else existing.title
+                val fb2Doc = null
+                val proposed = existing?.title ?: name.substringBeforeLast(".").ifBlank { name }
                 val book = LocalBook(uri.toString(), proposed, if (isFb2) "fb2" else "txt")
-                if (books.none { it.uri == book.uri }) {
+                if (existing != null) {\n                    books[books.indexOf(existing)] = book\n                    saveBooks(context, books)\n                } else {
                     books.add(0, book)
                     saveBooks(context, books)
                 }
@@ -285,7 +308,7 @@ private fun OpenReaderApp() {
                     },
                     navigationIcon = {
                         if (currentBook != null) {
-                            TextButton(onClick = { currentBook = null; content = "" }) {
+                            TextButton(onClick = { currentBookUri = null; content = "" }) {
                                 Text("← Назад")
                             }
                         }
@@ -396,12 +419,12 @@ private fun OpenReaderApp() {
                             }
                             Text("TXT и FB2: постраничное чтение. EPUB добавим позже.", style = MaterialTheme.typography.bodySmall)
                             if (books.isEmpty()) {
-                                Text("Книг пока нет. Нажмите кнопку выше, чтобы выбрать TXT-файл.")
+                                Text("Книг пока нет. Нажмите кнопку выше, чтобы выбрать TXT или FB2.")
                             }
                             books.forEach { book ->
                                 Card(onClick = { openBook(book) }, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp)) {
-                                        Text(book.title, style = MaterialTheme.typography.titleMedium)
+                                        Text(book.title, style = MaterialTheme.typography.titleMedium)\n                                        Text(book.format.uppercase(), style = MaterialTheme.typography.labelSmall)
                                         TextButton(onClick = { editingBook = book; editedTitle = book.title }) { Text("Переименовать") }
                                     }
                                 }
@@ -432,7 +455,7 @@ private fun OpenReaderApp() {
                         if (original != null && newTitle.isNotEmpty()) {
                             val index = books.indexOfFirst { it.uri == original.uri }
                             if (index >= 0) books[index] = original.copy(title = newTitle)
-                            if (currentBook?.uri == original.uri) currentBook = original.copy(title = newTitle)
+                            // The selected book is derived from the updated library list.
                             saveBooks(context, books)
                             editingBook = null
                         }
