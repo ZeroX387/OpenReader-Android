@@ -2,6 +2,7 @@ package com.openreader
 
 import android.content.Context
 import android.net.Uri
+import org.xmlpull.v1.XmlPullParser
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -50,7 +51,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class LocalBook(val uri: String, val title: String)
+private data class LocalBook(val uri: String, val title: String, val format: String = "txt")
 
 private fun loadBooks(context: Context): List<LocalBook> {
     val prefs = context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
@@ -59,7 +60,7 @@ private fun loadBooks(context: Context): List<LocalBook> {
         val array = org.json.JSONArray(saved)
         (0 until array.length()).map { index ->
             val obj = array.getJSONObject(index)
-            LocalBook(obj.getString("uri"), obj.getString("title"))
+            LocalBook(obj.getString("uri"), obj.getString("title"), obj.optString("format", "txt"))
         }
     } catch (_: Exception) { emptyList() }
 }
@@ -76,7 +77,7 @@ private fun suggestedTitle(raw: String, fallback: String): String {
 private fun saveBooks(context: Context, books: List<LocalBook>) {
     val array = org.json.JSONArray()
     books.forEach { book ->
-        array.put(org.json.JSONObject().put("uri", book.uri).put("title", book.title))
+        array.put(org.json.JSONObject().put("uri", book.uri).put("title", book.title).put("format", book.format))
     }
     context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
         .edit().putString("books", array.toString()).apply()
@@ -104,6 +105,71 @@ private fun readTxt(context: Context, uri: Uri): String {
     } catch (_: Exception) {
         String(bytes, charset("windows-1251"))
     }
+}
+
+private data class Fb2Document(val title: String, val authors: String, val annotation: String, val body: String)
+
+private fun readFb2(context: Context, uri: Uri): Fb2Document {
+    val xml = context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
+        ?: error("Не удалось открыть FB2-файл.")
+    require(xml.length <= 5_000_000) { "Файл слишком большой для этой тестовой версии (максимум 5 МБ)." }
+    val parser = android.util.Xml.newPullParser()
+    parser.setInput(xml.reader())
+    var title = ""
+    val authors = mutableListOf<String>()
+    var annotation = ""
+    val body = StringBuilder()
+    val stack = ArrayDeque<String>()
+    var capture: String? = null
+    var captured = StringBuilder()
+    var inMainBody = false
+    var mainBodySeen = false
+    var inAnnotation = false
+    var titleInfoDepth = 0
+    var paragraphDepth = 0
+    while (true) {
+        when (parser.eventType) {
+            XmlPullParser.START_TAG -> {
+                val tag = parser.name.lowercase()
+                stack.addLast(tag)
+                if (tag == "body" && !mainBodySeen) { inMainBody = true; mainBodySeen = true }
+                if (tag == "title-info") titleInfoDepth = stack.size
+                if (titleInfoDepth > 0 && tag == "author") {
+                    val first = parser.getAttributeValue(null, "first-name")
+                    val middle = parser.getAttributeValue(null, "middle-name")
+                    val last = parser.getAttributeValue(null, "last-name")
+                    val full = listOfNotNull(first, middle, last).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
+                    if (full.isNotBlank()) authors.add(full)
+                }
+                if (titleInfoDepth > 0 && tag == "book-title") { capture = "title"; captured = StringBuilder() }
+                if (titleInfoDepth > 0 && tag == "annotation") { inAnnotation = true; capture = "annotation"; captured = StringBuilder() }
+                if (inMainBody && tag in setOf("title", "p", "subtitle", "text-author", "empty-line", "section")) {
+                    when (tag) {
+                        "title" -> { if (body.isNotEmpty()) body.append("\n\n"); body.append("\n") ; paragraphDepth++ }
+                        "p", "subtitle", "text-author" -> { if (body.isNotEmpty()) body.append("\n"); paragraphDepth++ }
+                        "empty-line" -> body.append("\n")
+                    }
+                }
+            }
+            XmlPullParser.TEXT -> {
+                val t = parser.text
+                if (capture != null) captured.append(t)
+                if (inMainBody) body.append(t)
+            }
+            XmlPullParser.END_TAG -> {
+                val tag = parser.name.lowercase()
+                if (capture == "title" && tag == "book-title") { title = captured.toString().trim(); capture = null }
+                if (capture == "annotation" && tag == "annotation") { annotation = captured.toString().trim(); capture = null; inAnnotation = false }
+                if (tag == "body" && inMainBody) inMainBody = false
+                if (tag == "title-info") titleInfoDepth = 0
+                if (stack.isNotEmpty()) stack.removeLast()
+            }
+        }
+        if (parser.next() == XmlPullParser.END_DOCUMENT) break
+    }
+    val text = body.toString().replace(Regex("[ \\t]+\\n"), "\n").replace(Regex("\\n{3,}"), "\n\n").trim()
+    require(text.isNotBlank()) { "В FB2 не найден основной текст книги." }
+    return Fb2Document(title, authors.distinct().joinToString(", "), annotation, text)
 }
 
 private fun cleanBookText(raw: String): String {
@@ -170,7 +236,7 @@ private fun OpenReaderApp() {
 
     fun openBook(book: LocalBook) {
         try {
-            content = cleanBookText(readTxt(context, Uri.parse(book.uri)))
+            content = if (book.format == "fb2") readFb2(context, Uri.parse(book.uri)).let { doc -> (if (doc.annotation.isNotBlank()) "Аннотация\\n\\n${doc.annotation}\\n\\n" else "") + doc.body } else cleanBookText(readTxt(context, Uri.parse(book.uri)))
             currentBook = book
             error = null
         } catch (e: Exception) {
@@ -184,7 +250,7 @@ private fun OpenReaderApp() {
                 context.contentResolver.takePersistableUriPermission(
                     uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-                val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                val mime = context.contentResolver.getType(uri) ?: ""\n                val isFb2 = mime.contains("fb2", true) || uri.lastPathSegment?.endsWith(".fb2", true) == true\n                val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
                     ?.use { cursor ->
                         if (cursor.moveToFirst()) cursor.getString(0) else null
                     } ?: "Книга TXT"
@@ -321,10 +387,10 @@ private fun OpenReaderApp() {
                             style = MaterialTheme.typography.headlineMedium
                         )
                         if (selectedTab == 0) {
-                            Button(onClick = { picker.launch(arrayOf("text/plain", "text/*", "application/octet-stream")) }) {
-                                Text("+ Добавить TXT-книгу")
+                            Button(onClick = { picker.launch(arrayOf("text/plain", "text/*", "application/octet-stream", "application/x-fictionbook+xml", "application/xml", "text/xml")) }) {
+                                Text("+ Добавить TXT / FB2")
                             }
-                            Text("Версия 0.3: постраничное чтение TXT. EPUB и другие форматы добавим позже.", style = MaterialTheme.typography.bodySmall)
+                            Text("TXT и FB2: постраничное чтение. EPUB добавим позже.", style = MaterialTheme.typography.bodySmall)
                             if (books.isEmpty()) {
                                 Text("Книг пока нет. Нажмите кнопку выше, чтобы выбрать TXT-файл.")
                             }
