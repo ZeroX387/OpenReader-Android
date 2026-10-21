@@ -426,7 +426,8 @@ private fun OpenReaderApp() {
                             books.forEach { book ->
                                 Card(onClick = { openBook(book) }, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp)) {
-                                        Text(book.title, style = MaterialTheme.typography.titleMedium)\n                                        Text(book.format.uppercase(), style = MaterialTheme.typography.labelSmall)
+                                        Text(book.title, style = MaterialTheme.typography.titleMedium)
+                                        Text(book.format.uppercase(), style = MaterialTheme.typography.labelSmall)
                                         TextButton(onClick = { editingBook = book; editedTitle = book.title }) { Text("Переименовать") }
                                     }
                                 }
