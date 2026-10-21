@@ -162,7 +162,7 @@ private fun OpenReaderApp() {
                 if (currentBook != null) {
                     val book = currentBook!!
                     val key = "position_" + book.uri.hashCode()
-                    val scroll = key(book.uri) { androidx.compose.foundation.ScrollState(prefs.getInt(key, 0)) }
+                    val scroll = remember(book.uri) { androidx.compose.foundation.ScrollState(prefs.getInt(key, 0)) }
                     LaunchedEffect(scroll, key) {
                         snapshotFlow { scroll.value }.drop(1).collectLatest { position ->
                             prefs.edit().putInt(key, position).apply()
