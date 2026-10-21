@@ -251,13 +251,16 @@ private fun OpenReaderApp() {
                 context.contentResolver.takePersistableUriPermission(
                     uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-                val mime = context.contentResolver.getType(uri) ?: ""\n                val isFb2 = mime.contains("fb2", true) || uri.lastPathSegment?.endsWith(".fb2", true) == true\n                val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                val mime = context.contentResolver.getType(uri) ?: ""
+                val isFb2 = mime.contains("fb2", true) || uri.lastPathSegment?.endsWith(".fb2", true) == true
+                val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
                     ?.use { cursor ->
                         if (cursor.moveToFirst()) cursor.getString(0) else null
                     } ?: "Книга TXT"
                 val existing = books.firstOrNull { it.uri == uri.toString() }
-                val proposed = if (existing == null) suggestedTitle(cleanBookText(readTxt(context, uri)), name) else existing.title
-                val book = LocalBook(uri.toString(), proposed)
+                val fb2Doc = if (isFb2) readFb2(context, uri) else null
+                val proposed = if (existing == null) (fb2Doc?.title?.takeIf { it.isNotBlank() } ?: suggestedTitle(if (isFb2) "" else cleanBookText(readTxt(context, uri)), name)) else existing.title
+                val book = LocalBook(uri.toString(), proposed, if (isFb2) "fb2" else "txt")
                 if (books.none { it.uri == book.uri }) {
                     books.add(0, book)
                     saveBooks(context, books)
