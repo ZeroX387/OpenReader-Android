@@ -20,6 +20,10 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import android.text.Html
 import android.text.StaticLayout
@@ -426,9 +430,34 @@ private fun OpenReaderApp() {
                             books.forEach { book ->
                                 Card(onClick = { openBook(book) }, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp)) {
-                                        Text(book.title, style = MaterialTheme.typography.titleMedium)
-                                        Text(book.format.uppercase(), style = MaterialTheme.typography.labelSmall)
-                                        TextButton(onClick = { editingBook = book; editedTitle = book.title }) { Text("Переименовать") }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            val cover by produceState<android.graphics.Bitmap?>(initialValue = null, book.uri, book.format) {
+                                                value = if (book.format == "fb2") withContext(Dispatchers.IO) {
+                                                    loadFb2Cover(context, Uri.parse(book.uri))
+                                                } else null
+                                            }
+                                            Box(
+                                                Modifier.width(74.dp).height(104.dp)
+                                                    .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (cover != null) {
+                                                    Image(
+                                                        bitmap = cover!!.asImageBitmap(),
+                                                        contentDescription = "Обложка книги",
+                                                        modifier = Modifier.fillMaxSize(),
+                                                        contentScale = ContentScale.Crop
+                                                    )
+                                                } else {
+                                                    Text("📖", style = MaterialTheme.typography.headlineMedium)
+                                                }
+                                            }
+                                            Column {
+                                                Text(book.title, style = MaterialTheme.typography.titleMedium)
+                                                Text(book.format.uppercase(), style = MaterialTheme.typography.labelSmall)
+                                                TextButton(onClick = { editingBook = book; editedTitle = book.title }) { Text("Переименовать") }
+                                            }
+                                        }
                                     }
                                 }
                             }
