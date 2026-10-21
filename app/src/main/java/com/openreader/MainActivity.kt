@@ -22,6 +22,11 @@ import android.graphics.Typeface
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -98,18 +103,23 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float)
         textSize = fontPx
         typeface = Typeface.DEFAULT
     }
+    // Lay out the book only once. Rebuilding a layout for every page caused
+    // quadratic work and could trigger Android's "app isn't responding" dialog.
+    val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx)
+        .setIncludePad(false)
+        .setLineSpacing(fontPx * 0.5f, 1f)
+        .build()
     val result = mutableListOf(0)
-    var offset = 0
-    while (offset < text.length) {
-        val remaining = text.substring(offset)
-        val layout = StaticLayout.Builder.obtain(remaining, 0, remaining.length, paint, widthPx)
-            .setIncludePad(false).setLineSpacing(fontPx * 0.5f, 1f).build()
-        var lastLine = 0
-        while (lastLine + 1 < layout.lineCount && layout.getLineBottom(lastLine + 1) <= heightPx) lastLine++
-        val next = (offset + layout.getLineEnd(lastLine).coerceAtLeast(1)).coerceAtMost(text.length)
-        if (next <= offset) break
-        offset = next
-        if (offset < text.length) result.add(offset)
+    var pageTop = 0
+    var pageStartLine = 0
+    for (line in 0 until layout.lineCount) {
+        if (layout.getLineBottom(line) - pageTop > heightPx && line > pageStartLine) {
+            val nextLine = line
+            val nextOffset = layout.getLineStart(nextLine)
+            if (nextOffset > result.last()) result.add(nextOffset)
+            pageStartLine = nextLine
+            pageTop = layout.getLineTop(line)
+        }
     }
     return result
 }
@@ -205,47 +215,71 @@ private fun OpenReaderApp() {
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val widthPx = with(density) { (maxWidth - 36.dp).roundToPx() }
-                        val heightPx = with(density) { (maxHeight - 54.dp).roundToPx() }
+                        // Reserve fixed space for controls and page counter so pagination
+                        // doesn't change when the controls are shown or hidden.
+                        val heightPx = with(density) { (maxHeight - 78.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
-                        val starts = remember(content, widthPx, heightPx, fontPx) {
-                            pageStarts(content, widthPx, heightPx, fontPx)
+                        val starts by produceState(
+                            initialValue = listOf(0),
+                            key1 = content, key2 = widthPx, key3 = heightPx, key4 = fontPx
+                        ) {
+                            value = withContext(Dispatchers.Default) {
+                                pageStarts(content, widthPx, heightPx, fontPx)
+                            }
                         }
-                        val page = (starts.indexOfLast { it <= charPosition }).coerceAtLeast(0)
+                        val safePosition = charPosition.coerceIn(0, content.length)
+                        val page = (starts.indexOfLast { it <= safePosition }).coerceAtLeast(0)
                         fun moveTo(index: Int) {
                             val target = index.coerceIn(0, starts.lastIndex)
                             charPosition = starts[target]
-                            prefs.edit().putInt(positionKey, charPosition).apply()
+                            // commit() ensures the last page is persisted before Android
+                            // kills the process after the user leaves the app.
+                            prefs.edit().putInt(positionKey, charPosition).commit()
+                        }
+                        DisposableEffect(book.uri, charPosition) {
+                            onDispose {
+                                prefs.edit().putInt(positionKey, charPosition).commit()
+                            }
                         }
                         Column(Modifier.fillMaxSize()) {
-                            if (showControls) {
-                                Row(
-                                    Modifier.fillMaxWidth().height(48.dp),
-                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
+                            Row(
+                                Modifier.fillMaxWidth().height(48.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (showControls) {
                                     TextButton(onClick = {
                                         fontSize = (fontSize - 1).coerceAtLeast(12f)
-                                        prefs.edit().putFloat("font_size", fontSize).apply()
+                                        prefs.edit().putFloat("font_size", fontSize).commit()
                                     }) { Text("A−") }
                                     Text("Шрифт: ${fontSize.toInt()}")
                                     TextButton(onClick = {
                                         fontSize = (fontSize + 1).coerceAtMost(32f)
-                                        prefs.edit().putFloat("font_size", fontSize).apply()
+                                        prefs.edit().putFloat("font_size", fontSize).commit()
                                     }) { Text("A+") }
                                 }
                             }
-                            Row(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp)) {
-                                Box(Modifier.fillMaxHeight().weight(1f).clickable { moveTo(page - 1) })
-                                Box(Modifier.fillMaxHeight().weight(5f).clickable { showControls = !showControls }) {
+                            Box(
+                                Modifier.weight(1f).fillMaxWidth()
+                                    .pointerInput(starts, page, showControls) {
+                                        detectTapGestures { tap ->
+                                            when {
+                                                tap.x < size.width * 0.25f -> moveTo(page - 1)
+                                                tap.x > size.width * 0.75f -> moveTo(page + 1)
+                                                else -> showControls = !showControls
+                                            }
+                                        }
+                                    }
+                            ) {
+                                if (content.isNotEmpty()) {
                                     val endChar = if (page + 1 < starts.size) starts[page + 1] else content.length
                                     Text(
-                                        content.substring(starts[page], endChar),
+                                        content.substring(starts[page].coerceIn(0, content.length), endChar.coerceIn(starts[page].coerceIn(0, content.length), content.length)),
                                         fontSize = fontSize.sp,
                                         lineHeight = (fontSize * 1.5f).sp,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)
                                     )
                                 }
-                                Box(Modifier.fillMaxHeight().weight(1f).clickable { moveTo(page + 1) })
                             }
                             Text(
                                 "${page + 1} / ${starts.size}",
