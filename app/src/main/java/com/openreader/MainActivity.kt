@@ -1,43 +1,28 @@
 package com.openreader
 
+import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.Button
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.snapshotFlow
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,97 +31,189 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class ShelfItem(val title: String, val subtitle: String)
+private data class LocalBook(val uri: String, val title: String)
+
+private fun loadBooks(context: Context): List<LocalBook> {
+    val prefs = context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
+    val saved = prefs.getString("books", "[]") ?: "[]"
+    return try {
+        val array = org.json.JSONArray(saved)
+        (0 until array.length()).map { index ->
+            val obj = array.getJSONObject(index)
+            LocalBook(obj.getString("uri"), obj.getString("title"))
+        }
+    } catch (_: Exception) { emptyList() }
+}
+
+private fun saveBooks(context: Context, books: List<LocalBook>) {
+    val array = org.json.JSONArray()
+    books.forEach { book ->
+        array.put(org.json.JSONObject().put("uri", book.uri).put("title", book.title))
+    }
+    context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
+        .edit().putString("books", array.toString()).apply()
+}
+
+private fun readTxt(context: Context, uri: Uri): String {
+    val bytes = context.contentResolver.openInputStream(uri)?.use { stream ->
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        while (true) {
+            val n = stream.read(buffer)
+            if (n < 0) break
+            if (output.size() + n > 5_000_000) error("Файл слишком большой для этой тестовой версии (максимум 5 МБ).")
+            output.write(buffer, 0, n)
+        }
+        output.toByteArray()
+    } ?: error("Не удалось открыть файл.")
+    val offset = if (bytes.size >= 3 && bytes[0] == 0xEF.toByte() &&
+        bytes[1] == 0xBB.toByte() && bytes[2] == 0xBF.toByte()) 3 else 0
+    return try {
+        StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+            .decode(ByteBuffer.wrap(bytes, offset, bytes.size - offset)).toString()
+    } catch (_: Exception) {
+        String(bytes, charset("windows-1251"))
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun OpenReaderApp() {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
+    val books = remember { mutableStateListOf<LocalBook>().apply { addAll(loadBooks(context)) } }
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Библиотека", "Избранное", "Папки", "Прочитано")
-    val examples = listOf(
-        ShelfItem("Добро пожаловать в OpenReader", "Здесь появятся ваши книги"),
-        ShelfItem("Офлайн-чтение", "Без рекламы и подписок"),
-        ShelfItem("Ваша библиотека", "Импортируйте EPUB, FB2, PDF и TXT")
-    )
+    var currentBook by remember { mutableStateOf<LocalBook?>(null) }
+    var content by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var fontSize by remember { mutableFloatStateOf(prefs.getFloat("font_size", 19f)) }
+
+    fun openBook(book: LocalBook) {
+        try {
+            content = readTxt(context, Uri.parse(book.uri))
+            currentBook = book
+            error = null
+        } catch (e: Exception) {
+            error = e.message ?: "Не удалось открыть книгу. Попробуйте добавить её заново."
+        }
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { cursor ->
+                        if (cursor.moveToFirst()) cursor.getString(0) else null
+                    } ?: "Книга TXT"
+                val book = LocalBook(uri.toString(), name)
+                if (books.none { it.uri == book.uri }) {
+                    books.add(0, book)
+                    saveBooks(context, books)
+                }
+                openBook(book)
+            } catch (e: Exception) {
+                error = e.message ?: "Не удалось добавить книгу."
+            }
+        }
+    }
 
     MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.MenuBook, contentDescription = null)
-                                Spacer(Modifier.size(10.dp))
-                                Column {
-                                    Text("OpenReader")
-                                    Text("Читай в своём ритме", style = MaterialTheme.typography.labelMedium)
-                                }
-                            }
-                        },
-                        actions = {
-                            Button(onClick = { }) {
-                                Icon(Icons.Default.Search, contentDescription = "Поиск")
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            currentBook?.title ?: "OpenReader",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    navigationIcon = {
+                        if (currentBook != null) {
+                            TextButton(onClick = { currentBook = null; content = "" }) {
+                                Text("← Назад")
                             }
                         }
-                    )
-                },
-                bottomBar = {
+                    }
+                )
+            },
+            bottomBar = {
+                if (currentBook == null) {
                     NavigationBar {
-                        val icons = listOf(Icons.Default.Book, Icons.Default.Favorite, Icons.Default.Folder, Icons.Default.MenuBook)
+                        val tabs = listOf("Библиотека", "Избранное", "Папки", "Прочитано")
                         tabs.forEachIndexed { index, label ->
                             NavigationBarItem(
                                 selected = selectedTab == index,
                                 onClick = { selectedTab = index },
-                                icon = { Icon(icons[index], contentDescription = label) },
+                                icon = { Text(listOf("📚", "★", "▤", "✓")[index]) },
                                 label = { Text(label) }
                             )
                         }
                     }
                 }
-            ) { padding ->
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    item {
-                        Text(
-                            when (selectedTab) {
-                                1 -> "Избранное"
-                                2 -> "Папки и коллекции"
-                                3 -> "Прочитанные книги"
-                                else -> "Моя библиотека"
-                            },
-                            style = MaterialTheme.typography.headlineMedium,
-                            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                        )
-                    }
-                    item {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("Твоя библиотека — твои правила", style = MaterialTheme.typography.titleLarge)
-                                Text("OpenReader создаётся как бесплатная офлайн-читалка. Сейчас это первый каркас приложения.")
-                                Button(onClick = { }) { Text("Добавить книгу — скоро") }
-                            }
+            }
+        ) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding)) {
+                if (currentBook != null) {
+                    val book = currentBook!!
+                    val key = "position_" + book.uri.hashCode()
+                    val scroll = key(book.uri) { androidx.compose.foundation.ScrollState(prefs.getInt(key, 0)) }
+                    LaunchedEffect(scroll, key) {
+                        snapshotFlow { scroll.value }.drop(1).collectLatest { position ->
+                            prefs.edit().putInt(key, position).apply()
                         }
                     }
-                    items(examples) { book ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Book, contentDescription = null, modifier = Modifier.size(38.dp))
-                                Spacer(Modifier.size(14.dp))
-                                Column {
-                                    Text(book.title, style = MaterialTheme.typography.titleMedium)
-                                    Text(book.subtitle, style = MaterialTheme.typography.bodyMedium)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Размер текста: ${fontSize.toInt()}", style = MaterialTheme.typography.labelMedium)
+                        TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(12f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A−") }
+                        TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A+") }
+                    }
+                    Column(
+                        Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 18.dp, vertical = 12.dp)
+                    ) {
+                        Text(content, fontSize = fontSize.sp, lineHeight = (fontSize * 1.5f).sp)
+                    }
+                } else {
+                    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            listOf("Моя библиотека", "Избранное", "Папки и коллекции", "Прочитанные книги")[selectedTab],
+                            style = MaterialTheme.typography.headlineMedium
+                        )
+                        if (selectedTab == 0) {
+                            Button(onClick = { picker.launch(arrayOf("text/plain", "text/*", "application/octet-stream")) }) {
+                                Text("+ Добавить TXT-книгу")
+                            }
+                            Text("Версия 0.2: чтение TXT. EPUB и другие форматы добавим позже.", style = MaterialTheme.typography.bodySmall)
+                            if (books.isEmpty()) {
+                                Text("Книг пока нет. Нажмите кнопку выше, чтобы выбрать TXT-файл.")
+                            }
+                            books.forEach { book ->
+                                Card(onClick = { openBook(book) }, modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(16.dp)) {
+                                        Text(book.title, style = MaterialTheme.typography.titleMedium)
+                                        Text("Нажмите, чтобы читать", style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                             }
+                        } else {
+                            Text("Этот раздел появится в следующих версиях.")
                         }
                     }
                 }
             }
+        }
+        if (error != null) {
+            AlertDialog(
+                onDismissRequest = { error = null },
+                title = { Text("Не удалось открыть файл") },
+                text = { Text(error ?: "") },
+                confirmButton = { TextButton(onClick = { error = null }) { Text("Понятно") } }
+            )
         }
     }
 }
