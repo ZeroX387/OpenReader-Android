@@ -23,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.Dispatchers
@@ -217,18 +218,20 @@ private fun OpenReaderApp() {
                         val widthPx = with(density) { (maxWidth - 36.dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
-                        val heightPx = with(density) { (maxHeight - 78.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 30.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
-                        val starts by produceState(initialValue = listOf(0), *arrayOf(content, widthPx, heightPx, fontPx)) {
+                        val starts by produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx) {
                             value = withContext(Dispatchers.Default) {
                                 pageStarts(content, widthPx, heightPx, fontPx)
                             }
                         }
                         val safePosition = charPosition.coerceIn(0, content.length)
-                        val page = (starts.indexOfLast { it <= safePosition }).coerceAtLeast(0)
+                        val readyStarts = starts
+                        val page = (readyStarts?.indexOfLast { it <= safePosition } ?: 0).coerceAtLeast(0)
                         fun moveTo(index: Int) {
-                            val target = index.coerceIn(0, starts.lastIndex)
-                            charPosition = starts[target]
+                            val pages = readyStarts ?: return
+                            val target = index.coerceIn(0, pages.lastIndex)
+                            charPosition = pages[target]
                             // commit() ensures the last page is persisted before Android
                             // kills the process after the user leaves the app.
                             prefs.edit().putInt(positionKey, charPosition).commit()
@@ -239,26 +242,9 @@ private fun OpenReaderApp() {
                             }
                         }
                         Column(Modifier.fillMaxSize()) {
-                            Row(
-                                Modifier.fillMaxWidth().height(48.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (showControls) {
-                                    TextButton(onClick = {
-                                        fontSize = (fontSize - 1).coerceAtLeast(12f)
-                                        prefs.edit().putFloat("font_size", fontSize).commit()
-                                    }) { Text("A−") }
-                                    Text("Шрифт: ${fontSize.toInt()}")
-                                    TextButton(onClick = {
-                                        fontSize = (fontSize + 1).coerceAtMost(32f)
-                                        prefs.edit().putFloat("font_size", fontSize).commit()
-                                    }) { Text("A+") }
-                                }
-                            }
                             Box(
                                 Modifier.weight(1f).fillMaxWidth()
-                                    .pointerInput(starts, page, showControls) {
+                                    .pointerInput(readyStarts, page, showControls) {
                                         detectTapGestures { tap ->
                                             when {
                                                 tap.x < size.width * 0.25f -> moveTo(page - 1)
@@ -268,22 +254,31 @@ private fun OpenReaderApp() {
                                         }
                                     }
                             ) {
-                                if (content.isNotEmpty()) {
-                                    val endChar = if (page + 1 < starts.size) starts[page + 1] else content.length
+                                if (content.isNotEmpty() && readyStarts != null) {
+                                    val endChar = if (page + 1 < readyStarts.size) readyStarts[page + 1] else content.length
                                     Text(
-                                        content.substring(starts[page].coerceIn(0, content.length), endChar.coerceIn(starts[page].coerceIn(0, content.length), content.length)),
+                                        content.substring(readyStarts[page].coerceIn(0, content.length), endChar.coerceIn(readyStarts[page].coerceIn(0, content.length), content.length)),
                                         fontSize = fontSize.sp,
                                         lineHeight = (fontSize * 1.5f).sp,
                                         modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)
                                     )
+                                } else {
+                                    CircularProgressIndicator(Modifier.align(Alignment.Center))
                                 }
                             }
                             Text(
-                                "${page + 1} / ${starts.size}",
+                                if (readyStarts == null) "Подготовка страниц…" else "${page + 1} / ${readyStarts.size}",
                                 modifier = Modifier.fillMaxWidth().height(30.dp),
                                 textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.labelMedium
                             )
+                        }
+                        if (showControls) {
+                            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(12f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A−") }
+                                Text("Шрифт: ${fontSize.toInt()}")
+                                TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A+") }
+                            }
                         }
                     }
                 } else {
