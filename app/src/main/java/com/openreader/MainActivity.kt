@@ -366,7 +366,7 @@ private fun OpenReaderApp() {
                 if (currentBook != null) {
                     val book = currentBook!!
                     val positionKey = "page_char_" + book.uri.hashCode()
-                    var charPosition by remember(book.uri) {
+                    var charPosition by rememberSaveable(book.uri) {
                         mutableIntStateOf(prefs.getInt(positionKey, 0).coerceAtLeast(0))
                     }
                     var showControls by remember(book.uri) { mutableStateOf(false) }
