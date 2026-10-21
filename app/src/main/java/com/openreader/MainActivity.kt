@@ -201,7 +201,7 @@ private fun readFb2(context: Context, uri: Uri): Fb2Document {
 private fun cleanBookText(raw: String): String {
     if (!Regex("<(?:p|br|div|html|body)\\b", RegexOption.IGNORE_CASE).containsMatchIn(raw)) return raw
     return Html.fromHtml(raw, Html.FROM_HTML_MODE_LEGACY).toString()
-        .replace(Regex("\\n{3,}"), "\\n\\n").trim()
+        .replace(Regex("\\n{3,}"), "\n\n").trim()
 }
 
 private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float): List<Int> {
