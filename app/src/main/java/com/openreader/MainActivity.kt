@@ -180,8 +180,16 @@ private fun readFb2(context: Context, uri: Uri): Fb2Document {
         if (parser.next() == XmlPullParser.END_DOCUMENT) break
     }
     val text = body.toString().replace(Regex("[ \\t]+\\n"), "\n").replace(Regex("\\n{3,}"), "\n\n").trim()
-    require(text.isNotBlank()) { "В FB2 не найден основной текст книги." }
-    return Fb2Document(title, authors.distinct().joinToString(", "), annotation, text)
+    val normalizedText = if (Regex("</?(?:p|div|br|strong|em|html|body)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+        Html.fromHtml(text, Html.FROM_HTML_MODE_LEGACY).toString()
+    } else text
+    val cleanedText = normalizedText
+        .replace(Regex("\\\\n"), "\n")
+        .replace(Regex("[ \\t]+\\n"), "\n")
+        .replace(Regex("\\n{3,}"), "\n\n")
+        .trim()
+    require(cleanedText.isNotBlank()) { "В FB2 не найден основной текст книги." }
+    return Fb2Document(title, authors.distinct().joinToString(", "), annotation, cleanedText)
 }
 
 private fun cleanBookText(raw: String): String {
