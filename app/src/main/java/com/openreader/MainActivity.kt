@@ -145,6 +145,9 @@ private fun readFb2(context: Context, uri: Uri): Fb2Document {
     var inAnnotation = false
     var titleInfoDepth = 0
     var paragraphDepth = 0
+    var inAuthor = false
+    var authorPart: String? = null
+    val authorNames = mutableListOf<String>()
     while (true) {
         when (parser.eventType) {
             XmlPullParser.START_TAG -> {
@@ -153,12 +156,15 @@ private fun readFb2(context: Context, uri: Uri): Fb2Document {
                 if (tag == "body" && !mainBodySeen) { inMainBody = true; mainBodySeen = true }
                 if (tag == "title-info") titleInfoDepth = stack.size
                 if (titleInfoDepth > 0 && tag == "author") {
+                    inAuthor = true
+                    authorNames.clear()
                     val first = parser.getAttributeValue(null, "first-name")
                     val middle = parser.getAttributeValue(null, "middle-name")
                     val last = parser.getAttributeValue(null, "last-name")
                     val full = listOfNotNull(first, middle, last).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" ")
                     if (full.isNotBlank()) authors.add(full)
                 }
+                if (inAuthor && tag in setOf("first-name", "middle-name", "last-name")) authorPart = tag
                 if (titleInfoDepth > 0 && tag == "book-title") { capture = "title"; captured = StringBuilder() }
                 if (titleInfoDepth > 0 && tag == "annotation") { inAnnotation = true; capture = "annotation"; captured = StringBuilder() }
                 if (inMainBody && tag in setOf("title", "p", "subtitle", "text-author", "empty-line", "section")) {
@@ -172,10 +178,16 @@ private fun readFb2(context: Context, uri: Uri): Fb2Document {
             XmlPullParser.TEXT -> {
                 val t = parser.text
                 if (capture != null) captured.append(t)
+                if (inAuthor && authorPart != null && t.isNotBlank()) authorNames.add(t.trim())
                 if (inMainBody) body.append(t)
             }
             XmlPullParser.END_TAG -> {
                 val tag = parser.name.lowercase()
+                if (tag == authorPart) authorPart = null
+                if (tag == "author" && inAuthor) {
+                    if (authorNames.isNotEmpty()) authors.add(authorNames.joinToString(" "))
+                    inAuthor = false
+                }
                 if (capture == "title" && tag == "book-title") { title = captured.toString().trim(); capture = null }
                 if (capture == "annotation" && tag == "annotation") { annotation = captured.toString().trim(); capture = null; inAnnotation = false }
                 if (inMainBody && tag in setOf("title", "p", "subtitle", "text-author", "empty-line")) body.append("\n")
@@ -277,7 +289,7 @@ private fun OpenReaderApp() {
                 val loaded = withContext(Dispatchers.IO) {
                     if (book.format == "fb2") {
                         val doc = readFb2(context, Uri.parse(book.uri))
-                        val text = (if (doc.annotation.isNotBlank()) "Аннотация\n\n${doc.annotation}\n\n" else "") + doc.body
+                        val text = (if (doc.annotation.isNotBlank()) "Аннотация\n\n${cleanBookText(doc.annotation)}\n\n" else "") + doc.body
                         Pair(text, doc.title)
                     } else Pair(cleanBookText(readTxt(context, Uri.parse(book.uri))), "")
                 }
