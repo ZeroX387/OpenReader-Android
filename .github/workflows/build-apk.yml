@@ -33,6 +33,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk OpenReader-0.2-debug.apk
-          gh release view v0.2.0 >/dev/null 2>&1 || gh release create v0.2.0 --title "OpenReader 0.2.0 (TXT reader)" --notes "TXT import, reading, adjustable font size, saved scroll position. EPUB is not yet supported." --prerelease
-          gh release upload v0.2.0 OpenReader-0.2-debug.apk --clobber
+          cp app/build/outputs/apk/debug/app-debug.apk OpenReader-0.3-debug.apk
+          gh release view v0.3.0 >/dev/null 2>&1 || gh release create v0.3.0 --title "OpenReader 0.3.0 (page reader)" --notes "TXT page turning, HTML cleanup, character position saving. EPUB is not yet supported." --prerelease
+          gh release upload v0.3.0 OpenReader-0.3-debug.apk --clobber
