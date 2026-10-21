@@ -3,6 +3,8 @@
     <application
         android:allowBackup="true"
         android:label="OpenReader"
+        android:icon="@drawable/openreader_icon"
+        android:roundIcon="@drawable/openreader_icon"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
