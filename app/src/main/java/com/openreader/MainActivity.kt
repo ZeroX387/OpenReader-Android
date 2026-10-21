@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class LocalBook(val uri: String, val title: String, val format: String = "txt")
+private data class LocalBook(val uri: String, val title: String, val format: String = "txt", val author: String = "", val coverUri: String = "")
 
 private fun loadBooks(context: Context): List<LocalBook> {
     val prefs = context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
@@ -65,7 +65,7 @@ private fun loadBooks(context: Context): List<LocalBook> {
         val array = org.json.JSONArray(saved)
         (0 until array.length()).map { index ->
             val obj = array.getJSONObject(index)
-            LocalBook(obj.getString("uri"), obj.getString("title"), obj.optString("format", "txt"))
+            LocalBook(obj.getString("uri"), obj.getString("title"), obj.optString("format", "txt"), obj.optString("author", ""), obj.optString("coverUri", ""))
         }
     } catch (_: Exception) { emptyList() }
 }
@@ -82,7 +82,7 @@ private fun suggestedTitle(raw: String, fallback: String): String {
 private fun saveBooks(context: Context, books: List<LocalBook>) {
     val array = org.json.JSONArray()
     books.forEach { book ->
-        array.put(org.json.JSONObject().put("uri", book.uri).put("title", book.title).put("format", book.format))
+        array.put(org.json.JSONObject().put("uri", book.uri).put("title", book.title).put("format", book.format).put("author", book.author).put("coverUri", book.coverUri))
     }
     context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
         .edit().putString("books", array.toString()).apply()
@@ -212,7 +212,7 @@ private fun readFb2(context: Context, uri: Uri): Fb2Document {
 }
 
 private fun cleanBookText(raw: String): String {
-    if (!Regex("<(?:p|br|div|html|body)\\b", RegexOption.IGNORE_CASE).containsMatchIn(raw)) return raw
+    if (!Regex("</?(?:p|br|div|html|body|a)\\b", RegexOption.IGNORE_CASE).containsMatchIn(raw)) return raw
     return Html.fromHtml(raw, Html.FROM_HTML_MODE_LEGACY).toString()
         .replace(Regex("\\n{3,}"), "\n\n").trim()
 }
@@ -272,6 +272,7 @@ private fun OpenReaderApp() {
     var error by remember { mutableStateOf<String?>(null) }
     var editingBook by remember { mutableStateOf<LocalBook?>(null) }
     var editedTitle by remember { mutableStateOf("") }
+    var coverTargetUri by remember { mutableStateOf<String?>(null) }
     var fontSize by remember { mutableFloatStateOf(prefs.getFloat("font_size", 19f)) }
 
     fun openBook(book: LocalBook) {
@@ -290,16 +291,16 @@ private fun OpenReaderApp() {
                     if (book.format == "fb2") {
                         val doc = readFb2(context, Uri.parse(book.uri))
                         val text = (if (doc.annotation.isNotBlank()) "Аннотация\n\n${cleanBookText(doc.annotation)}\n\n" else "") + doc.body
-                        Pair(text, doc.title)
-                    } else Pair(cleanBookText(readTxt(context, Uri.parse(book.uri))), "")
+                        Triple(text, doc.title, doc.authors)
+                    } else Triple(cleanBookText(readTxt(context, Uri.parse(book.uri))), "", "")
                 }
                 content = loaded.first
-                if (book.format == "fb2" && loaded.second.isNotBlank()) {
+                if (book.format == "fb2") {
                     val sourceName = nameHintDisplayName(context, Uri.parse(book.uri)).substringBeforeLast(".")
-                    if (book.title == sourceName) {
+                    if (book.title == sourceName || book.author.isBlank()) {
                         val index = books.indexOfFirst { it.uri == book.uri }
                         if (index >= 0) {
-                            books[index] = book.copy(title = loaded.second)
+                            books[index] = book.copy(title = if (book.title == sourceName && loaded.second.isNotBlank()) loaded.second else book.title, author = loaded.third.ifBlank { book.author })
                             saveBooks(context, books)
                         }
                     }
@@ -324,7 +325,7 @@ private fun OpenReaderApp() {
                     } ?: "Книга TXT"
                 val existing = books.firstOrNull { it.uri == uri.toString() }
                 val proposed = existing?.title ?: name.substringBeforeLast(".").ifBlank { name }
-                val book = LocalBook(uri.toString(), proposed, if (isFb2) "fb2" else "txt")
+                val book = LocalBook(uri.toString(), proposed, if (isFb2) "fb2" else "txt", existing?.author.orEmpty(), existing?.coverUri.orEmpty())
                 if (existing != null) {
                     books[books.indexOf(existing)] = book
                     saveBooks(context, books)
@@ -337,6 +338,18 @@ private fun OpenReaderApp() {
                 error = e.message ?: "Не удалось добавить книгу."
             }
         }
+    }
+
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val target = coverTargetUri
+        if (uri != null && target != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                val index = books.indexOfFirst { it.uri == target }
+                if (index >= 0) { books[index] = books[index].copy(coverUri = uri.toString()); saveBooks(context, books) }
+            } catch (e: Exception) { error = e.message ?: "Не удалось выбрать обложку." }
+        }
+        coverTargetUri = null
     }
 
     MaterialTheme {
@@ -480,10 +493,12 @@ private fun OpenReaderApp() {
                                 Card(onClick = { openBook(book) }, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp)) {
                                         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            val cover by produceState<android.graphics.Bitmap?>(initialValue = null, book.uri, book.format) {
-                                                value = if (book.format == "fb2") withContext(Dispatchers.IO) {
-                                                    loadFb2Cover(context, Uri.parse(book.uri))
-                                                } else null
+                                            val cover by produceState<android.graphics.Bitmap?>(initialValue = null, book.uri, book.format, book.coverUri) {
+                                                value = withContext(Dispatchers.IO) {
+                                                    if (book.coverUri.isNotBlank()) {
+                                                        try { context.contentResolver.openInputStream(Uri.parse(book.coverUri))?.use { android.graphics.BitmapFactory.decodeStream(it) } } catch (_: Exception) { null }
+                                                    } else if (book.format == "fb2") loadFb2Cover(context, Uri.parse(book.uri)) else null
+                                                }
                                             }
                                             Box(
                                                 Modifier.width(74.dp).height(104.dp)
@@ -503,7 +518,9 @@ private fun OpenReaderApp() {
                                             }
                                             Column {
                                                 Text(book.title, style = MaterialTheme.typography.titleMedium)
+                                                if (book.author.isNotBlank()) Text(book.author, style = MaterialTheme.typography.bodySmall)
                                                 Text(book.format.uppercase(), style = MaterialTheme.typography.labelSmall)
+                                                TextButton(onClick = { coverTargetUri = book.uri; coverPicker.launch(arrayOf("image/*")) }) { Text("Выбрать обложку") }
                                                 TextButton(onClick = { editingBook = book; editedTitle = book.title }) { Text("Переименовать") }
                                             }
                                         }
