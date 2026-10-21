@@ -64,6 +64,15 @@ private fun loadBooks(context: Context): List<LocalBook> {
     } catch (_: Exception) { emptyList() }
 }
 
+private fun suggestedTitle(raw: String, fallback: String): String {
+    val lines = raw.lineSequence().take(45).map { it.trim() }.filter { it.isNotEmpty() }.toList()
+    val labeled = lines.firstNotNullOfOrNull { line ->
+        Regex("^(?:название|название книги|заглавие|title)\\\\s*[:：]\\\\s*(.+)$", RegexOption.IGNORE_CASE)
+            .find(line)?.groupValues?.get(1)?.trim()?.takeIf { it.length in 2..100 }
+    }
+    return labeled ?: fallback
+}
+
 private fun saveBooks(context: Context, books: List<LocalBook>) {
     val array = org.json.JSONArray()
     books.forEach { book ->
@@ -155,6 +164,8 @@ private fun OpenReaderApp() {
     var currentBook by remember { mutableStateOf<LocalBook?>(null) }
     var content by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var editingBook by remember { mutableStateOf<LocalBook?>(null) }
+    var editedTitle by remember { mutableStateOf("") }
     var fontSize by remember { mutableFloatStateOf(prefs.getFloat("font_size", 19f)) }
 
     fun openBook(book: LocalBook) {
@@ -177,7 +188,9 @@ private fun OpenReaderApp() {
                     ?.use { cursor ->
                         if (cursor.moveToFirst()) cursor.getString(0) else null
                     } ?: "Книга TXT"
-                val book = LocalBook(uri.toString(), name)
+                val existing = books.firstOrNull { it.uri == uri.toString() }
+                val proposed = if (existing == null) suggestedTitle(cleanBookText(readTxt(context, uri)), name) else existing.title
+                val book = LocalBook(uri.toString(), proposed)
                 if (books.none { it.uri == book.uri }) {
                     books.add(0, book)
                     saveBooks(context, books)
@@ -319,7 +332,7 @@ private fun OpenReaderApp() {
                                 Card(onClick = { openBook(book) }, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp)) {
                                         Text(book.title, style = MaterialTheme.typography.titleMedium)
-                                        Text("Нажмите, чтобы читать", style = MaterialTheme.typography.bodySmall)
+                                        TextButton(onClick = { editingBook = book; editedTitle = book.title }) { Text("Переименовать") }
                                     }
                                 }
                             }
@@ -329,6 +342,34 @@ private fun OpenReaderApp() {
                     }
                 }
             }
+        }
+        if (editingBook != null) {
+            AlertDialog(
+                onDismissRequest = { editingBook = null },
+                title = { Text("Название книги") },
+                text = {
+                    OutlinedTextField(
+                        value = editedTitle,
+                        onValueChange = { editedTitle = it },
+                        label = { Text("Название") },
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val original = editingBook
+                        val newTitle = editedTitle.trim()
+                        if (original != null && newTitle.isNotEmpty()) {
+                            val index = books.indexOfFirst { it.uri == original.uri }
+                            if (index >= 0) books[index] = original.copy(title = newTitle)
+                            if (currentBook?.uri == original.uri) currentBook = original.copy(title = newTitle)
+                            saveBooks(context, books)
+                            editingBook = null
+                        }
+                    }) { Text("Сохранить") }
+                },
+                dismissButton = { TextButton(onClick = { editingBook = null }) { Text("Отмена") } }
+            )
         }
         if (error != null) {
             AlertDialog(
