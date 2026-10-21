@@ -67,7 +67,7 @@ private fun loadBooks(context: Context): List<LocalBook> {
 private fun suggestedTitle(raw: String, fallback: String): String {
     val lines = raw.lineSequence().take(45).map { it.trim() }.filter { it.isNotEmpty() }.toList()
     val labeled = lines.firstNotNullOfOrNull { line ->
-        Regex("^(?:название|название книги|заглавие|title)\\\\s*[:：]\\\\s*(.+)$", RegexOption.IGNORE_CASE)
+        Regex("""^(?:название|название книги|заглавие|title)\s*[:：]\s*(.+)$""", RegexOption.IGNORE_CASE)
             .find(line)?.groupValues?.get(1)?.trim()?.takeIf { it.length in 2..100 }
     }
     return labeled ?: fallback
