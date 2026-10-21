@@ -269,6 +269,7 @@ private fun OpenReaderApp() {
     var currentBookUri by rememberSaveable { mutableStateOf<String?>(null) }
     val currentBook = books.firstOrNull { it.uri == currentBookUri }
     var content by remember { mutableStateOf("") }
+    var loadedBookUri by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var editingBook by remember { mutableStateOf<LocalBook?>(null) }
     var editedTitle by remember { mutableStateOf("") }
@@ -282,6 +283,7 @@ private fun OpenReaderApp() {
 
     LaunchedEffect(currentBookUri) {
         val book = books.firstOrNull { it.uri == currentBookUri }
+        loadedBookUri = null
         if (book == null) {
             content = ""
         } else {
@@ -295,6 +297,7 @@ private fun OpenReaderApp() {
                     } else Triple(cleanBookText(readTxt(context, Uri.parse(book.uri))), "", "")
                 }
                 content = loaded.first
+                loadedBookUri = book.uri
                 if (book.format == "fb2") {
                     val sourceName = nameHintDisplayName(context, Uri.parse(book.uri)).substringBeforeLast(".")
                     if (book.title == sourceName || book.author.isBlank()) {
@@ -448,7 +451,7 @@ private fun OpenReaderApp() {
                                         }
                                     }
                             ) {
-                                if (content.isNotEmpty() && readyStarts != null) {
+                                if (loadedBookUri == book.uri && content.isNotEmpty() && readyStarts != null) {
                                     val endChar = if (page + 1 < readyStarts.size) readyStarts[page + 1] else content.length
                                     Text(
                                         styledPage(content.substring(readyStarts[page].coerceIn(0, content.length), endChar.coerceIn(readyStarts[page].coerceIn(0, content.length), content.length))),
@@ -461,7 +464,7 @@ private fun OpenReaderApp() {
                                 }
                             }
                             Text(
-                                if (content.isEmpty() || readyStarts == null) "Загрузка книги…" else "${page + 1} / ${readyStarts.size}",
+                                if (loadedBookUri != book.uri || content.isEmpty() || readyStarts == null) "Загрузка книги…" else "${page + 1} / ${readyStarts.size}",
                                 modifier = Modifier.fillMaxWidth().height(30.dp),
                                 textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.labelMedium
