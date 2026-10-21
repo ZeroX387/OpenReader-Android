@@ -281,10 +281,12 @@ private fun OpenReaderApp() {
                         if (cursor.moveToFirst()) cursor.getString(0) else null
                     } ?: "Книга TXT"
                 val existing = books.firstOrNull { it.uri == uri.toString() }
-                val fb2Doc = null
                 val proposed = existing?.title ?: name.substringBeforeLast(".").ifBlank { name }
                 val book = LocalBook(uri.toString(), proposed, if (isFb2) "fb2" else "txt")
-                if (existing != null) {\n                    books[books.indexOf(existing)] = book\n                    saveBooks(context, books)\n                } else {
+                if (existing != null) {
+                    books[books.indexOf(existing)] = book
+                    saveBooks(context, books)
+                } else {
                     books.add(0, book)
                     saveBooks(context, books)
                 }
