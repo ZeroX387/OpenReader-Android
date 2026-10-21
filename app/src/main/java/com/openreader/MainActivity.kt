@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.background
 import android.text.Html
 import android.text.StaticLayout
 import android.text.TextPaint
@@ -123,6 +128,21 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float)
         }
     }
     return result
+}
+
+// Style chapter titles without modifying the source string or saved character offsets.
+private val chapterTitlePattern = Regex("(?im)^\\s*(?:глава\\b[^\\n]{0,65}|chapter\\b[^\\n]{0,65})\\s*$")
+
+private fun styledPage(pageText: String) = buildAnnotatedString {
+    var cursor = 0
+    chapterTitlePattern.findAll(pageText).forEach { match ->
+        append(pageText.substring(cursor, match.range.first))
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+            append(match.value)
+        }
+        cursor = match.range.last + 1
+    }
+    append(pageText.substring(cursor))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -257,7 +277,7 @@ private fun OpenReaderApp() {
                                 if (content.isNotEmpty() && readyStarts != null) {
                                     val endChar = if (page + 1 < readyStarts.size) readyStarts[page + 1] else content.length
                                     Text(
-                                        content.substring(readyStarts[page].coerceIn(0, content.length), endChar.coerceIn(readyStarts[page].coerceIn(0, content.length), content.length)),
+                                        styledPage(content.substring(readyStarts[page].coerceIn(0, content.length), endChar.coerceIn(readyStarts[page].coerceIn(0, content.length), content.length))),
                                         fontSize = fontSize.sp,
                                         lineHeight = (fontSize * 1.5f).sp,
                                         modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)
@@ -274,7 +294,7 @@ private fun OpenReaderApp() {
                             )
                         }
                         if (showControls) {
-                            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(12f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A−") }
                                 Text("Шрифт: ${fontSize.toInt()}")
                                 TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A+") }
