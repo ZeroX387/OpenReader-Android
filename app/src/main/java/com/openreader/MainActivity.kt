@@ -160,6 +160,7 @@ private fun readFb2(context: Context, uri: Uri): Fb2Document {
                 val tag = parser.name.lowercase()
                 if (capture == "title" && tag == "book-title") { title = captured.toString().trim(); capture = null }
                 if (capture == "annotation" && tag == "annotation") { annotation = captured.toString().trim(); capture = null; inAnnotation = false }
+                if (inMainBody && tag in setOf("title", "p", "subtitle", "text-author", "empty-line")) body.append("\\n")
                 if (tag == "body" && inMainBody) inMainBody = false
                 if (tag == "title-info") titleInfoDepth = 0
                 if (stack.isNotEmpty()) stack.removeLast()
