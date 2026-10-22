@@ -392,7 +392,7 @@ private fun OpenReaderApp() {
                     actions = {
                         if (currentBook == null) {
                             IconButton(onClick = { showSettings = true }) {
-                                Icon(androidx.compose.material.icons.Icons.Default.Settings, contentDescription = "Настройки")
+                                Text("⚙️", style = MaterialTheme.typography.titleLarge)
                             }
                         }
                     },
