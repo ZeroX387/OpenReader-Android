@@ -288,6 +288,7 @@ private fun OpenReaderApp() {
     var editedAuthor by remember { mutableStateOf("") }
     var menuBookUri by remember { mutableStateOf<String?>(null) }
     var coverTargetUri by remember { mutableStateOf<String?>(null) }
+    var bookToRemove by remember { mutableStateOf<LocalBook?>(null) }
     var fontSize by remember { mutableFloatStateOf(prefs.getFloat("font_size", 19f)) }
     var showSettings by remember { mutableStateOf(false) }
     var showReaderSettings by remember { mutableStateOf(false) }
@@ -555,7 +556,7 @@ private fun OpenReaderApp() {
                         }
                     }
                 } else {
-                    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
                             listOf("Моя библиотека", "Избранное", "Папки и коллекции", "Прочитанные книги")[selectedTab],
                             style = MaterialTheme.typography.headlineMedium
@@ -608,6 +609,9 @@ private fun OpenReaderApp() {
                                                         DropdownMenuItem(text = { Text("Сменить обложку") }, onClick = {
                                                             menuBookUri = null; coverTargetUri = book.uri; coverPicker.launch(arrayOf("image/*"))
                                                         })
+                                                        DropdownMenuItem(text = { Text("Убрать из библиотеки") }, onClick = {
+                                                            menuBookUri = null; bookToRemove = book
+                                                        })
                                                     }
                                                 }
                                             }
@@ -621,6 +625,23 @@ private fun OpenReaderApp() {
                     }
                 }
             }
+        }
+        if (bookToRemove != null) {
+            val target = bookToRemove!!
+            AlertDialog(
+                onDismissRequest = { bookToRemove = null },
+                title = { Text("Убрать книгу?") },
+                text = { Text("«" + target.title + "» исчезнет из библиотеки OpenReader. Сам файл книги останется на устройстве.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        books.removeAll { it.uri == target.uri }
+                        saveBooks(context, books)
+                        if (currentBookUri == target.uri) currentBookUri = null
+                        bookToRemove = null
+                    }) { Text("Убрать") }
+                },
+                dismissButton = { TextButton(onClick = { bookToRemove = null }) { Text("Отмена") } }
+            )
         }
         if (availableUpdate != null) {
             AlertDialog(
@@ -647,7 +668,7 @@ private fun OpenReaderApp() {
                     showWhatsNew = false
                 },
                 title = { Text("Что нового в OpenReader $appVersion") },
-                text = { Text("Настройки оформления и выбор темы. Улучшено отображение страниц при повороте экрана.") },
+                text = { Text("Добавлена поддержка EPUB. Книги можно листать и продолжать читать с сохранённого места. Улучшена библиотека и настройки оформления.") },
                 confirmButton = {
                     TextButton(onClick = {
                         prefs.edit().putString("last_seen_version", appVersion).apply()
