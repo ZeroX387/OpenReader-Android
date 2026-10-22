@@ -338,7 +338,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.0"
+    val appVersion = "0.4.1"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -944,7 +944,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     showWhatsNew = false
                 },
                 title = { Text("Что нового в OpenReader $appVersion") },
-                text = { Text("Добавлены закладки и сохранение цитат с переходом к месту в книге. Во время чтения откройте верхнюю панель нажатием по центру страницы.") },
+                text = { Text("Исправлена ошибка открытия EPUB на Android: неподдерживаемая настройка XML-парсера больше не блокирует чтение.") },
                 confirmButton = {
                     TextButton(onClick = {
                         prefs.edit().putString("last_seen_version", appVersion).apply()
