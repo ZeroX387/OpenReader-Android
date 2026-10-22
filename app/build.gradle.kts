@@ -12,8 +12,8 @@ android {
         applicationId = "com.openreader"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 4) + 100
+        versionName = "0.3.2"
     }
 
     buildFeatures {
