@@ -23,16 +23,36 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
       - name: Build debug APK
         run: gradle assembleDebug
+      - name: Sign APK with permanent OpenReader key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.OPENREADER_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.OPENREADER_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.OPENREADER_KEY_ALIAS }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/openreader-release.p12"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" sign \
+            --ks "$RUNNER_TEMP/openreader-release.p12" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEYSTORE_PASSWORD \
+            --out app/build/outputs/apk/debug/app-debug-signed.apk \
+            app/build/outputs/apk/debug/app-debug.apk
+          "$APKSIGNER" verify app/build/outputs/apk/debug/app-debug-signed.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: OpenReader-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/app-debug-signed.apk
           if-no-files-found: error
       - name: Publish downloadable APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk OpenReader-0.3-debug.apk
+          cp app/build/outputs/apk/debug/app-debug-signed.apk OpenReader-0.3-debug.apk
           gh release view v0.3.0 >/dev/null 2>&1 || gh release create v0.3.0 --title "OpenReader 0.3.0 (page reader)" --notes "TXT page turning, HTML cleanup, character position saving. EPUB is not yet supported." --prerelease
           gh release upload v0.3.0 OpenReader-0.3-debug.apk --clobber
