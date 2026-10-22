@@ -295,6 +295,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
     val books = remember { mutableStateListOf<LocalBook>().apply { addAll(loadBooks(context)) } }
+    var notesBook by remember { mutableStateOf<LocalBook?>(null) }
+    var notesMode by remember { mutableStateOf("Закладки") }
+    var quoteDraft by remember { mutableStateOf("") }
+    var quotePosition by remember { mutableIntStateOf(0) }
+    var bookmarkPosition by remember { mutableIntStateOf(0) }
+    var quoteEditor by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Добавление") ?: "Добавление") }
     var sortExpanded by remember { mutableStateOf(false) }
@@ -332,7 +338,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.3.10"
+    val appVersion = "0.4.0"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -548,6 +554,15 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         mutableIntStateOf(prefs.getInt(positionKey, 0).coerceAtLeast(0))
                     }
                     var showControls by remember(book.uri) { mutableStateOf(false) }
+                    LaunchedEffect(book.uri) { bookmarkPosition = prefs.getInt("jump_" + book.uri.hashCode(), -1) }
+                    LaunchedEffect(book.uri, bookmarkPosition) {
+                        if (bookmarkPosition >= 0) {
+                            charPosition = bookmarkPosition.coerceAtLeast(0)
+                            bookmarkPosition = -1
+                            prefs.edit().putInt("jump_" + book.uri.hashCode(), -1).apply()
+                        }
+                    }
+
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val widthPx = with(density) { (maxWidth - (readerMargin * 2).dp).roundToPx() }
@@ -629,6 +644,20 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         }
                         if (showControls) {
                             Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = {
+                                    val key = "bookmarks_" + book.uri.hashCode()
+                                    val items = org.json.JSONArray(prefs.getString(key, "[]") ?: "[]")
+                                    if ((0 until items.length()).none { items.optInt(it) == charPosition }) {
+                                        items.put(charPosition); prefs.edit().putString(key, items.toString()).apply()
+                                    }
+                                    notesBook = book; notesMode = "Закладки"
+                                }) { Text("🔖") }
+                                TextButton(onClick = {
+                                    quotePosition = charPosition
+                                    quoteDraft = ""
+                                    quoteEditor = true
+                                }) { Text("❝") }
+                                TextButton(onClick = { notesBook = book; notesMode = "Цитаты" }) { Text("☷") }
                                 TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(12f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A−") }
                                 IconButton(onClick = { showReaderSettings = true }) { Text("⚙️", style = MaterialTheme.typography.titleLarge) }
                                 TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A+") }
@@ -727,6 +756,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                                         DropdownMenuItem(text = { Text("Сменить обложку") }, onClick = {
                                                             menuBookUri = null; coverTargetUri = book.uri; coverPicker.launch(arrayOf("image/*"))
                                                         })
+                                                        DropdownMenuItem(text = { Text("Закладки и цитаты") }, onClick = {
+                                                            notesBook = book; notesMode = "Закладки"; menuBookUri = null
+                                                        })
                                                         DropdownMenuItem(text = { Text("Добавить в коллекцию") }, onClick = {
                                                             collectionTarget = book; collectionName = book.collection; menuBookUri = null
                                                         })
@@ -783,6 +815,92 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 dismissButton = { TextButton(onClick = { collectionTarget = null }) { Text("Отмена") } }
             )
         }
+        if (quoteEditor && currentBook != null) {
+            val book = currentBook!!
+            AlertDialog(
+                onDismissRequest = { quoteEditor = false },
+                title = { Text("Сохранить цитату") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Выдели и скопируй нужный фрагмент из текста ниже, затем вставь его в поле цитаты.")
+                        androidx.compose.foundation.text.selection.SelectionContainer {
+                            Text(content.drop(quotePosition.coerceIn(0, content.length)).take(1500), modifier = Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()))
+                        }
+                        OutlinedTextField(value = quoteDraft, onValueChange = { quoteDraft = it }, label = { Text("Текст цитаты") }, minLines = 2, maxLines = 5)
+                    }
+                },
+                confirmButton = { TextButton(enabled = quoteDraft.isNotBlank(), onClick = {
+                    val key = "quotes_" + book.uri.hashCode()
+                    val items = org.json.JSONArray(prefs.getString(key, "[]") ?: "[]")
+                    items.put(org.json.JSONObject().put("position", quotePosition).put("text", quoteDraft.trim()))
+                    prefs.edit().putString(key, items.toString()).apply()
+                    quoteEditor = false
+                }) { Text("Сохранить") } },
+                dismissButton = { TextButton(onClick = { quoteEditor = false }) { Text("Отмена") } }
+            )
+        }
+        if (notesBook != null) {
+            val target = notesBook!!
+            val bookmarks = org.json.JSONArray(prefs.getString("bookmarks_" + target.uri.hashCode(), "[]") ?: "[]")
+            val quotes = org.json.JSONArray(prefs.getString("quotes_" + target.uri.hashCode(), "[]") ?: "[]")
+            AlertDialog(
+                onDismissRequest = { notesBook = null },
+                title = { Text("Закладки и цитаты · " + target.title) },
+                text = {
+                    Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                        Row {
+                            TextButton(onClick = { notesMode = "Закладки" }) { Text("🔖 Закладки") }
+                            TextButton(onClick = { notesMode = "Цитаты" }) { Text("❝ Цитаты") }
+                        }
+                        if (notesMode == "Закладки") {
+                            if (bookmarks.length() == 0) Text("Закладок пока нет")
+                            for (i in 0 until bookmarks.length()) {
+                                val pos = bookmarks.optInt(i)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(modifier = Modifier.weight(1f), onClick = {
+                                        prefs.edit().putInt("page_char_" + target.uri.hashCode(), pos).putInt("jump_" + target.uri.hashCode(), pos).apply()
+                                        currentBookUri = target.uri
+                                        bookmarkPosition = pos
+                                        notesBook = null
+                                    }) { Text("Место " + (i + 1) + " · " + pos + " символ") }
+                                    TextButton(onClick = {
+                                        val updated = org.json.JSONArray()
+                                        for (j in 0 until bookmarks.length()) if (j != i) updated.put(bookmarks.optInt(j))
+                                        prefs.edit().putString("bookmarks_" + target.uri.hashCode(), updated.toString()).apply()
+                                        notesBook = null
+                                    }) { Text("✕") }
+                                }
+                            }
+                        } else {
+                            if (quotes.length() == 0) Text("Цитат пока нет")
+                            for (i in 0 until quotes.length()) {
+                                val entry = quotes.optJSONObject(i) ?: continue
+                                Text(entry.optString("text"))
+                                Row {
+                                    TextButton(onClick = {
+                                        val pos = entry.optInt("position")
+                                        prefs.edit().putInt("page_char_" + target.uri.hashCode(), pos).putInt("jump_" + target.uri.hashCode(), pos).apply()
+                                        currentBookUri = target.uri; bookmarkPosition = pos; notesBook = null
+                                    }) { Text("Перейти") }
+                                    TextButton(onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Цитата", entry.optString("text")))
+                                    }) { Text("Копировать") }
+                                    TextButton(onClick = {
+                                        val updated = org.json.JSONArray()
+                                        for (j in 0 until quotes.length()) if (j != i) updated.put(quotes.getJSONObject(j))
+                                        prefs.edit().putString("quotes_" + target.uri.hashCode(), updated.toString()).apply()
+                                        notesBook = null
+                                    }) { Text("✕") }
+                                }
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { notesBook = null }) { Text("Закрыть") } }
+            )
+        }
         if (bookToRemove != null) {
             val target = bookToRemove!!
             AlertDialog(
@@ -826,7 +944,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     showWhatsNew = false
                 },
                 title = { Text("Что нового в OpenReader $appVersion") },
-                text = { Text("Прочитанные книги теперь перемещаются из основной библиотеки в отдельный раздел. Добавлена ручная проверка обновлений с диагностикой.") },
+                text = { Text("Добавлены закладки и сохранение цитат с переходом к месту в книге. Во время чтения откройте верхнюю панель нажатием по центру страницы.") },
                 confirmButton = {
                     TextButton(onClick = {
                         prefs.edit().putString("last_seen_version", appVersion).apply()
