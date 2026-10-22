@@ -49,10 +49,16 @@ jobs:
           name: OpenReader-debug
           path: app/build/outputs/apk/debug/app-debug-signed.apk
           if-no-files-found: error
-      - name: Publish downloadable APK
+      - name: Publish versioned APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug-signed.apk OpenReader-0.3-debug.apk
-          gh release view v0.3.0 >/dev/null 2>&1 || gh release create v0.3.0 --title "OpenReader 0.3.0 (page reader)" --notes "TXT page turning, HTML cleanup, character position saving. EPUB is not yet supported." --prerelease
-          gh release upload v0.3.0 OpenReader-0.3-debug.apk --clobber
+          VERSION=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)
+          test -n "$VERSION"
+          TAG="v$VERSION"
+          FILE="OpenReader-$VERSION.apk"
+          cp app/build/outputs/apk/debug/app-debug-signed.apk "$FILE"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "OpenReader $VERSION" --notes "Настройки оформления чтения: цвета страниц, размер текста, интервал и поля. Независимая тема приложения." --prerelease --target "${GITHUB_SHA}"
+          fi
+          gh release upload "$TAG" "$FILE" --clobber
