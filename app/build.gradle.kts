@@ -13,7 +13,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 4) + 100
-        versionName = "0.4.3"
+        versionName = "0.4.4"
     }
 
     buildFeatures {
