@@ -332,7 +332,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.3.8"
+    val appVersion = "0.3.9"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         try {
@@ -639,7 +639,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             }
                         }
                         if (selectedTab == 2) {
-                            Text("Коллекции: " + books.map { it.collection }.filter { it.isNotBlank() }.distinct().joinToString(", ").ifBlank { "пока нет" })
+                            Text("Коллекции: " + ((prefs.getStringSet("collections", emptySet()) ?: emptySet()) + books.map { it.collection }.filter { it.isNotBlank() }).distinct().joinToString(", ").ifBlank { "пока нет" })
                             OutlinedButton(onClick = { collectionDialog = true }) { Text("+ Создать коллекцию") }
                         }
                         if (selectedTab != 0 || books.isNotEmpty()) {
@@ -733,6 +733,44 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 }
             }
         }
+        if (collectionDialog) {
+            AlertDialog(
+                onDismissRequest = { collectionDialog = false },
+                title = { Text("Новая коллекция") },
+                text = { OutlinedTextField(value = newCollection, onValueChange = { newCollection = it }, label = { Text("Название") }) },
+                confirmButton = { TextButton(onClick = {
+                    if (newCollection.isNotBlank()) {
+                        prefs.edit().putStringSet("collections", (prefs.getStringSet("collections", emptySet()) ?: emptySet()) + newCollection.trim()).apply()
+                    }
+                    collectionDialog = false; newCollection = ""
+                }) { Text("Создать") } },
+                dismissButton = { TextButton(onClick = { collectionDialog = false }) { Text("Отмена") } }
+            )
+        }
+        if (collectionTarget != null) {
+            val target = collectionTarget!!
+            AlertDialog(
+                onDismissRequest = { collectionTarget = null },
+                title = { Text("Коллекция для «" + target.title + "»") },
+                text = {
+                    Column {
+                        OutlinedTextField(value = collectionName, onValueChange = { collectionName = it }, label = { Text("Название коллекции") })
+                        (prefs.getStringSet("collections", emptySet()) ?: emptySet()).forEach { name ->
+                            TextButton(onClick = { collectionName = name }) { Text(name) }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = {
+                    val i = books.indexOfFirst { it.uri == target.uri }
+                    if (i >= 0) {
+                        books[i] = books[i].copy(collection = collectionName.trim())
+                        saveBooks(context, books)
+                    }
+                    collectionTarget = null
+                }) { Text("Сохранить") } },
+                dismissButton = { TextButton(onClick = { collectionTarget = null }) { Text("Отмена") } }
+            )
+        }
         if (bookToRemove != null) {
             val target = bookToRemove!!
             AlertDialog(
@@ -775,7 +813,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     showWhatsNew = false
                 },
                 title = { Text("Что нового в OpenReader $appVersion") },
-                text = { Text("Теперь библиотеку можно прокручивать, а книги — убирать с подтверждением без удаления файла. Добавлено открытие книг через «Открыть с помощью».") },
+                text = { Text("Добавлены избранное, прочитанные книги, коллекции, сортировка и процент прочтения. Нажмите на звёздочку или галочку на карточке книги.") },
                 confirmButton = {
                     TextButton(onClick = {
                         prefs.edit().putString("last_seen_version", appVersion).apply()
