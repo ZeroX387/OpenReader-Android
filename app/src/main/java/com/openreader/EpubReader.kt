@@ -37,10 +37,14 @@ internal fun readEpub(context: Context, uri: Uri): EpubDocument {
     fun xml(bytes: ByteArray): org.w3c.dom.Document {
         val factory = DocumentBuilderFactory.newInstance()
         factory.isNamespaceAware = true
-        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-        factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
-        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-        return factory.newDocumentBuilder().parse(ByteArrayInputStream(bytes))
+        factory.isExpandEntityReferences = false
+        try { factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) } catch (_: Exception) { }
+        try { factory.setFeature("http://xml.org/sax/features/external-general-entities", false) } catch (_: Exception) { }
+        try { factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false) } catch (_: Exception) { }
+        try { factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) } catch (_: Exception) { }
+        val builder = factory.newDocumentBuilder()
+        builder.setEntityResolver { _, _ -> org.xml.sax.InputSource(java.io.StringReader("")) }
+        return builder.parse(ByteArrayInputStream(bytes))
     }
     fun elements(parent: org.w3c.dom.Document, name: String): List<Element> {
         val nodes = parent.getElementsByTagNameNS("*", name)
