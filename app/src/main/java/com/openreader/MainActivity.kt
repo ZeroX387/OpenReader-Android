@@ -50,9 +50,27 @@ import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 
 class MainActivity : ComponentActivity() {
+    private var externalBook by mutableStateOf<Uri?>(null)
+    private fun acceptIntent(incoming: android.content.Intent?) {
+        externalBook = when (incoming?.action) {
+            android.content.Intent.ACTION_VIEW -> incoming.data
+            android.content.Intent.ACTION_SEND -> {
+                if (android.os.Build.VERSION.SDK_INT >= 33)
+                    incoming.getParcelableExtra(android.content.Intent.EXTRA_STREAM, Uri::class.java)
+                else @Suppress("DEPRECATION") incoming.getParcelableExtra(android.content.Intent.EXTRA_STREAM)
+            }
+            else -> null
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { OpenReaderApp() }
+        acceptIntent(intent)
+        setContent { OpenReaderApp(externalBook) }
+    }
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        acceptIntent(intent)
     }
 }
 
@@ -273,7 +291,7 @@ private fun styledPage(pageText: String) = buildAnnotatedString {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun OpenReaderApp() {
+private fun OpenReaderApp(externalBook: Uri? = null) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
     val books = remember { mutableStateListOf<LocalBook>().apply { addAll(loadBooks(context)) } }
@@ -401,6 +419,45 @@ private fun OpenReaderApp() {
                 openBook(book)
             } catch (e: Exception) {
                 error = e.message ?: "Не удалось добавить книгу."
+            }
+        }
+    }
+
+    LaunchedEffect(externalBook) {
+        if (externalBook != null) {
+            try {
+                val imported = withContext(Dispatchers.IO) {
+                    val filename = nameHintDisplayName(context, externalBook).ifBlank { "Книга" }
+                    val format = when {
+                        filename.endsWith(".epub", true) || context.contentResolver.getType(externalBook)?.contains("epub", true) == true -> "epub"
+                        filename.endsWith(".fb2", true) || context.contentResolver.getType(externalBook)?.contains("fb2", true) == true -> "fb2"
+                        else -> "txt"
+                    }
+                    val folder = java.io.File(context.filesDir, "imported_books").apply { mkdirs() }
+                    val suffix = when (format) { "epub" -> ".epub"; "fb2" -> ".fb2"; else -> ".txt" }
+                    val file = java.io.File.createTempFile("openreader_", suffix, folder)
+                    try {
+                        context.contentResolver.openInputStream(externalBook)?.use { source ->
+                            file.outputStream().use { target ->
+                                val buffer = ByteArray(8192)
+                                var total = 0L
+                                while (true) {
+                                    val count = source.read(buffer)
+                                    if (count < 0) break
+                                    total += count
+                                    if (total > 35_000_000) error("Книга слишком большая (лимит 35 МБ).")
+                                    target.write(buffer, 0, count)
+                                }
+                            }
+                        } ?: error("Не удалось прочитать выбранный файл.")
+                    } catch (e: Exception) { file.delete(); throw e }
+                    LocalBook(Uri.fromFile(file).toString(), filename.substringBeforeLast('.').ifBlank { filename }, format)
+                }
+                books.add(0, imported)
+                saveBooks(context, books)
+                openBook(imported)
+            } catch (e: Exception) {
+                error = e.message ?: "Не удалось импортировать книгу."
             }
         }
     }
