@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
             android.content.Intent.ACTION_SEND -> {
                 if (android.os.Build.VERSION.SDK_INT >= 33)
                     incoming.getParcelableExtra(android.content.Intent.EXTRA_STREAM, Uri::class.java)
-                else @Suppress("DEPRECATION") incoming.getParcelableExtra(android.content.Intent.EXTRA_STREAM)
+                else incoming.getParcelableExtra<Uri>(android.content.Intent.EXTRA_STREAM)
             }
             else -> null
         }
@@ -326,7 +326,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.3.7"
+    val appVersion = "0.3.8"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         try {
@@ -700,7 +700,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 dismissButton = { TextButton(onClick = { bookToRemove = null }) { Text("Отмена") } }
             )
         }
-        if (availableUpdate != null) {
+        if (availableUpdate != null && !showWhatsNew) {
             AlertDialog(
                 onDismissRequest = { availableUpdate = null },
                 title = { Text("Доступно обновление") },
@@ -725,7 +725,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     showWhatsNew = false
                 },
                 title = { Text("Что нового в OpenReader $appVersion") },
-                text = { Text("Добавлена поддержка EPUB. Книги можно листать и продолжать читать с сохранённого места. Улучшена библиотека и настройки оформления.") },
+                text = { Text("Теперь библиотеку можно прокручивать, а книги — убирать с подтверждением без удаления файла. Добавлено открытие книг через «Открыть с помощью».") },
                 confirmButton = {
                     TextButton(onClick = {
                         prefs.edit().putString("last_seen_version", appVersion).apply()
