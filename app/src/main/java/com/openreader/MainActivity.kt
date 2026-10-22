@@ -332,15 +332,20 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.3.9"
+    val appVersion = "0.3.10"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
+    var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
+    var updateCheck by remember { mutableIntStateOf(0) }
+    LaunchedEffect(updateCheck) {
+        updateStatus = "Проверяем..."
         try {
             val latest = withContext(Dispatchers.IO) {
                 val connection = java.net.URL("https://api.github.com/repos/ZeroX387/OpenReader-Android/releases?per_page=10").openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout = 5000
-                connection.readTimeout = 5000
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
                 connection.setRequestProperty("Accept", "application/vnd.github+json")
+                connection.setRequestProperty("User-Agent", "OpenReader-Android")
+                connection.setRequestProperty("Cache-Control", "no-cache")
                 try {
                     org.json.JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
                         .let { releases -> (0 until releases.length()).map { releases.getJSONObject(it) }.firstOrNull { !it.optBoolean("draft") }?.optString("tag_name") ?: "" }.removePrefix("v")
@@ -351,10 +356,17 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
             val a = numbers(latest)
             val b = numbers(installed)
             val firstDifference = (0..2).firstOrNull { a.getOrElse(it) { 0 } != b.getOrElse(it) { 0 } }
-            if (firstDifference != null && a.getOrElse(firstDifference) { 0 } > b.getOrElse(firstDifference) { 0 }) {
-                availableUpdate = latest
+            if (latest.isBlank()) {
+                updateStatus = "Не удалось получить номер последней версии"
+            } else if (firstDifference != null && a.getOrElse(firstDifference) { 0 } > b.getOrElse(firstDifference) { 0 }) {
+                updateStatus = "Доступна версия $latest (установлена $installed)"
+                if (prefs.getString("update_notice_seen", "") != latest) availableUpdate = latest
+            } else {
+                updateStatus = "Установлена актуальная версия $installed"
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            updateStatus = "Ошибка проверки: " + (e.message ?: e.javaClass.simpleName)
+        }
     }
     var showWhatsNew by remember { mutableStateOf(prefs.getString("last_seen_version", null) != appVersion) }
 
@@ -663,7 +675,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     }
                                 }
                             }
-                            sortedBooks.filter { selectedTab == 0 || (selectedTab == 1 && it.favorite) || (selectedTab == 3 && it.finished) || (selectedTab == 2 && it.collection.isNotBlank()) }.forEach { book ->
+                            sortedBooks.filter { (selectedTab == 0 && !it.finished) || (selectedTab == 1 && it.favorite) || (selectedTab == 3 && it.finished) || (selectedTab == 2 && it.collection.isNotBlank()) }.forEach { book ->
                                 Card(onClick = { openBook(book) }, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp)) {
                                         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -813,7 +825,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     showWhatsNew = false
                 },
                 title = { Text("Что нового в OpenReader $appVersion") },
-                text = { Text("Добавлены избранное, прочитанные книги, коллекции, сортировка и процент прочтения. Нажмите на звёздочку или галочку на карточке книги.") },
+                text = { Text("Прочитанные книги теперь перемещаются из основной библиотеки в отдельный раздел. Добавлена ручная проверка обновлений с диагностикой.") },
                 confirmButton = {
                     TextButton(onClick = {
                         prefs.edit().putString("last_seen_version", appVersion).apply()
