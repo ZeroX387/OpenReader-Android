@@ -460,7 +460,14 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     val format = when {
                         filename.endsWith(".epub", true) || context.contentResolver.getType(externalBook)?.contains("epub", true) == true -> "epub"
                         filename.endsWith(".fb2", true) || context.contentResolver.getType(externalBook)?.contains("fb2", true) == true -> "fb2"
-                        else -> "txt"
+                        else -> {
+                            val signature = context.contentResolver.openInputStream(externalBook)?.use { input ->
+                                ByteArray(4).also { input.read(it) }
+                            }
+                            if (signature != null && signature.size == 4 &&
+                                signature[0] == 80.toByte() && signature[1] == 75.toByte() &&
+                                signature[2] == 3.toByte() && signature[3] == 4.toByte()) "epub" else "txt"
+                        }
                     }
                     val folder = java.io.File(context.filesDir, "imported_books").apply { mkdirs() }
                     val suffix = when (format) { "epub" -> ".epub"; "fb2" -> ".fb2"; else -> ".txt" }
