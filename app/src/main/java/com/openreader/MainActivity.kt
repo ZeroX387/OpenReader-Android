@@ -347,7 +347,10 @@ private fun OpenReaderApp() {
             content = ""
             try {
                 val loaded = withContext(Dispatchers.IO) {
-                    if (book.format == "fb2") {
+                    if (book.format == "epub") {
+                        val doc = readEpub(context, Uri.parse(book.uri))
+                        Triple(doc.text, doc.title, doc.author)
+                    } else if (book.format == "fb2") {
                         val doc = readFb2(context, Uri.parse(book.uri))
                         val text = (if (doc.annotation.isNotBlank()) "Аннотация\n\n${cleanBookText(doc.annotation)}\n\n" else "") + doc.body
                         Triple(text, doc.title, doc.authors)
@@ -355,7 +358,7 @@ private fun OpenReaderApp() {
                 }
                 content = loaded.first
                 loadedBookUri = book.uri
-                if (book.format == "fb2") {
+                if (book.format == "fb2" || book.format == "epub") {
                     val sourceName = nameHintDisplayName(context, Uri.parse(book.uri)).substringBeforeLast(".")
                     if (book.title == sourceName || book.author.isBlank()) {
                         val index = books.indexOfFirst { it.uri == book.uri }
@@ -379,13 +382,14 @@ private fun OpenReaderApp() {
                 )
                 val mime = context.contentResolver.getType(uri) ?: ""
                 val isFb2 = mime.contains("fb2", true) || nameHintFb2(context, uri)
+                val isEpub = mime.contains("epub", true) || nameHintDisplayName(context, uri).endsWith(".epub", ignoreCase = true)
                 val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
                     ?.use { cursor ->
                         if (cursor.moveToFirst()) cursor.getString(0) else null
                     } ?: "Книга TXT"
                 val existing = books.firstOrNull { it.uri == uri.toString() }
                 val proposed = existing?.title ?: name.substringBeforeLast(".").ifBlank { name }
-                val book = LocalBook(uri.toString(), proposed, if (isFb2) "fb2" else "txt", existing?.author.orEmpty(), existing?.coverUri.orEmpty())
+                val book = LocalBook(uri.toString(), proposed, if (isEpub) "epub" else if (isFb2) "fb2" else "txt", existing?.author.orEmpty(), existing?.coverUri.orEmpty())
                 if (existing != null) {
                     books[books.indexOf(existing)] = book
                     saveBooks(context, books)
@@ -557,10 +561,10 @@ private fun OpenReaderApp() {
                             style = MaterialTheme.typography.headlineMedium
                         )
                         if (selectedTab == 0) {
-                            Button(onClick = { picker.launch(arrayOf("text/plain", "text/*", "application/octet-stream", "application/x-fictionbook+xml", "application/xml", "text/xml")) }) {
-                                Text("+ Добавить TXT / FB2")
+                            Button(onClick = { picker.launch(arrayOf("text/plain", "text/*", "application/octet-stream", "application/x-fictionbook+xml", "application/xml", "text/xml", "application/epub+zip")) }) {
+                                Text("+ Добавить TXT / FB2 / EPUB")
                             }
-                            Text("TXT и FB2: постраничное чтение. EPUB добавим позже.", style = MaterialTheme.typography.bodySmall)
+                            Text("TXT, FB2 и EPUB: постраничное чтение.", style = MaterialTheme.typography.bodySmall)
                             if (books.isEmpty()) {
                                 Text("Книг пока нет. Нажмите кнопку выше, чтобы выбрать TXT или FB2.")
                             }
