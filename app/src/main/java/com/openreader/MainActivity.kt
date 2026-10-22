@@ -294,6 +294,10 @@ private fun styledPage(pageText: String) = buildAnnotatedString {
 private fun OpenReaderApp(externalBook: Uri? = null) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
+    var languageChoice by remember { mutableStateOf(prefs.getString("language", "system") ?: "system") }
+    val systemLanguage = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language
+    val englishUi = (if (languageChoice == "system") systemLanguage else languageChoice) != "ru"
+    fun tr(ru: String, en: String) = if (englishUi) en else ru
     val books = remember { mutableStateListOf<LocalBook>().apply { addAll(loadBooks(context)) } }
     var notesBook by remember { mutableStateOf<LocalBook?>(null) }
     var notesMode by remember { mutableStateOf("Закладки") }
@@ -338,7 +342,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.3"
+    val appVersion = "0.4.4"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -1003,11 +1007,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         if (showSettings) {
             AlertDialog(
                 onDismissRequest = { showSettings = false },
-                title = { Text("Настройки") },
+                title = { Text(tr("Настройки", "Settings")) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Тема оформления")
-                        listOf("system" to "Как в телефоне", "light" to "Светлая", "dark" to "Тёмная").forEach { (value, label) ->
+                        Text(tr("Тема оформления", "Appearance"))
+                        listOf("system" to tr("Как в телефоне", "Follow system"), "light" to tr("Светлая", "Light"), "dark" to tr("Тёмная", "Dark")).forEach { (value, label) ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 RadioButton(selected = themeChoice == value, onClick = {
                                     themeChoice = value
@@ -1020,12 +1024,31 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             }
                         }
                         HorizontalDivider()
-                        Text("Обновления OpenReader")
+                        Text(tr("Язык приложения", "App language"))
+                        var languageExpanded by remember { mutableStateOf(false) }
+                        OutlinedButton(onClick = { languageExpanded = true }) {
+                            Text(when (languageChoice) {
+                                "ru" -> "Русский"
+                                "en" -> "English"
+                                else -> tr("Как в системе", "Follow system")
+                            } + " ▾")
+                        }
+                        DropdownMenu(expanded = languageExpanded, onDismissRequest = { languageExpanded = false }) {
+                            listOf("system" to tr("Как в системе", "Follow system"), "ru" to "Русский", "en" to "English").forEach { (code, label) ->
+                                DropdownMenuItem(text = { Text(label) }, onClick = {
+                                    languageChoice = code
+                                    prefs.edit().putString("language", code).apply()
+                                    languageExpanded = false
+                                })
+                            }
+                        }
+                        HorizontalDivider()
+                        Text(tr("Обновления OpenReader", "OpenReader updates"))
                         Text(updateStatus, style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(onClick = { updateCheck++ }) { Text("Проверить обновления") }
+                        OutlinedButton(onClick = { updateCheck++ }) { Text(tr("Проверить обновления", "Check for updates")) }
                     }
                 },
-                confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Готово") } }
+                confirmButton = { TextButton(onClick = { showSettings = false }) { Text(tr("Готово", "Done")) } }
             )
         }
         if (editingBook != null) {
