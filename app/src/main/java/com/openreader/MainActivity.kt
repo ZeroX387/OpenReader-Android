@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class LocalBook(val uri: String, val title: String, val format: String = "txt", val author: String = "", val coverUri: String = "")
+private data class LocalBook(val uri: String, val title: String, val format: String = "txt", val author: String = "", val coverUri: String = "", val favorite: Boolean = false, val finished: Boolean = false, val genre: String = "", val collection: String = "", val addedAt: Long = 0L, val length: Int = 0)
 
 private fun loadBooks(context: Context): List<LocalBook> {
     val prefs = context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
@@ -83,7 +83,7 @@ private fun loadBooks(context: Context): List<LocalBook> {
         val array = org.json.JSONArray(saved)
         (0 until array.length()).map { index ->
             val obj = array.getJSONObject(index)
-            LocalBook(obj.getString("uri"), obj.getString("title"), obj.optString("format", "txt"), obj.optString("author", ""), obj.optString("coverUri", ""))
+            LocalBook(obj.getString("uri"), obj.getString("title"), obj.optString("format", "txt"), obj.optString("author", ""), obj.optString("coverUri", ""), obj.optBoolean("favorite"), obj.optBoolean("finished"), obj.optString("genre", ""), obj.optString("collection", ""), obj.optLong("addedAt"), obj.optInt("length"))
         }
     } catch (_: Exception) { emptyList() }
 }
@@ -100,7 +100,7 @@ private fun suggestedTitle(raw: String, fallback: String): String {
 private fun saveBooks(context: Context, books: List<LocalBook>) {
     val array = org.json.JSONArray()
     books.forEach { book ->
-        array.put(org.json.JSONObject().put("uri", book.uri).put("title", book.title).put("format", book.format).put("author", book.author).put("coverUri", book.coverUri))
+        array.put(org.json.JSONObject().put("uri", book.uri).put("title", book.title).put("format", book.format).put("author", book.author).put("coverUri", book.coverUri).put("favorite", book.favorite).put("finished", book.finished).put("genre", book.genre).put("collection", book.collection).put("addedAt", book.addedAt).put("length", book.length))
     }
     context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
         .edit().putString("books", array.toString()).apply()
@@ -296,6 +296,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
     val books = remember { mutableStateListOf<LocalBook>().apply { addAll(loadBooks(context)) } }
     var selectedTab by remember { mutableIntStateOf(0) }
+    var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Добавление") ?: "Добавление") }
+    var sortExpanded by remember { mutableStateOf(false) }
+    var newCollection by remember { mutableStateOf("") }
+    var collectionDialog by remember { mutableStateOf(false) }
+    var collectionTarget by remember { mutableStateOf<LocalBook?>(null) }
+    var collectionName by remember { mutableStateOf("") }
     var currentBookUri by rememberSaveable { mutableStateOf<String?>(null) }
     val currentBook = books.firstOrNull { it.uri == currentBookUri }
     var content by remember { mutableStateOf("") }
@@ -376,6 +382,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     } else Triple(cleanBookText(readTxt(context, Uri.parse(book.uri))), "", "")
                 }
                 content = loaded.first
+                val loadedIndex = books.indexOfFirst { it.uri == book.uri }
+                if (loadedIndex >= 0 && books[loadedIndex].length != loaded.first.length) {
+                    books[loadedIndex] = books[loadedIndex].copy(length = loaded.first.length)
+                    saveBooks(context, books)
+                }
                 loadedBookUri = book.uri
                 if (book.format == "fb2" || book.format == "epub") {
                     val sourceName = nameHintDisplayName(context, Uri.parse(book.uri)).substringBeforeLast(".")
@@ -408,7 +419,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     } ?: "Книга TXT"
                 val existing = books.firstOrNull { it.uri == uri.toString() }
                 val proposed = existing?.title ?: name.substringBeforeLast(".").ifBlank { name }
-                val book = LocalBook(uri.toString(), proposed, if (isEpub) "epub" else if (isFb2) "fb2" else "txt", existing?.author.orEmpty(), existing?.coverUri.orEmpty())
+                val book = LocalBook(uri.toString(), proposed, if (isEpub) "epub" else if (isFb2) "fb2" else "txt", existing?.author.orEmpty(), existing?.coverUri.orEmpty(), existing?.favorite ?: false, existing?.finished ?: false, existing?.genre.orEmpty(), existing?.collection.orEmpty(), existing?.addedAt ?: System.currentTimeMillis(), existing?.length ?: 0)
                 if (existing != null) {
                     books[books.indexOf(existing)] = book
                     saveBooks(context, books)
@@ -451,7 +462,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             }
                         } ?: error("Не удалось прочитать выбранный файл.")
                     } catch (e: Exception) { file.delete(); throw e }
-                    LocalBook(Uri.fromFile(file).toString(), filename.substringBeforeLast('.').ifBlank { filename }, format)
+                    LocalBook(Uri.fromFile(file).toString(), filename.substringBeforeLast('.').ifBlank { filename }, format, addedAt = System.currentTimeMillis())
                 }
                 books.add(0, imported)
                 saveBooks(context, books)
