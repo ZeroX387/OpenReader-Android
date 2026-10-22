@@ -802,12 +802,13 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         }
         if (availableUpdate != null && !showWhatsNew) {
             AlertDialog(
-                onDismissRequest = { availableUpdate = null },
+                onDismissRequest = { prefs.edit().putString("update_notice_seen", availableUpdate).apply(); availableUpdate = null },
                 title = { Text("Доступно обновление") },
                 text = { Text("Вышла новая версия OpenReader. Скачать APK?") },
                 confirmButton = {
                     TextButton(onClick = {
                         val version = availableUpdate
+                        prefs.edit().putString("update_notice_seen", version).apply()
                         availableUpdate = null
                         if (version != null) {
                             val url = "https://github.com/ZeroX387/OpenReader-Android/releases/tag/v" + version
@@ -815,7 +816,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         }
                     }) { Text("Скачать") }
                 },
-                dismissButton = { TextButton(onClick = { availableUpdate = null }) { Text("Позже") } }
+                dismissButton = { TextButton(onClick = { prefs.edit().putString("update_notice_seen", availableUpdate).apply(); availableUpdate = null }) { Text("Позже") } }
             )
         }
         if (showWhatsNew) {
@@ -893,7 +894,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             }
                         }
                         HorizontalDivider()
-
+                        Text("Обновления OpenReader")
+                        Text(updateStatus, style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(onClick = { updateCheck++ }) { Text("Проверить обновления") }
                     }
                 },
                 confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Готово") } }
