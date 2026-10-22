@@ -307,7 +307,7 @@ private fun OpenReaderApp() {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.3.6"
+    val appVersion = "0.3.7"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         try {
