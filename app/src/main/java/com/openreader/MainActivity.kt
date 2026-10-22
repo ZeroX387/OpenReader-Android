@@ -281,6 +281,8 @@ private fun OpenReaderApp() {
     var error by remember { mutableStateOf<String?>(null) }
     var editingBook by remember { mutableStateOf<LocalBook?>(null) }
     var editedTitle by remember { mutableStateOf("") }
+    var editedAuthor by remember { mutableStateOf("") }
+    var menuBookUri by remember { mutableStateOf<String?>(null) }
     var coverTargetUri by remember { mutableStateOf<String?>(null) }
     var fontSize by remember { mutableFloatStateOf(prefs.getFloat("font_size", 19f)) }
 
@@ -459,7 +461,7 @@ private fun OpenReaderApp() {
                                         }
                                     }
                             ) {
-                                if (loadedBookUri == book.uri && content.isNotEmpty() && readyStarts != null) {
+                                if (loadedBookUri == book.uri && content.isNotEmpty() && readyStarts != null && readyStarts.firstOrNull() != null) {
                                     val endChar = if (page + 1 < readyStarts.size) readyStarts[page + 1] else content.length
                                     Text(
                                         styledPage(content.substring(readyStarts[page].coerceIn(0, content.length), endChar.coerceIn(readyStarts[page].coerceIn(0, content.length), content.length))),
@@ -468,7 +470,12 @@ private fun OpenReaderApp() {
                                         modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)
                                     )
                                 } else {
-                                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+                                    Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                        Text("📖", style = MaterialTheme.typography.displayLarge)
+                                        Text("OpenReader", style = MaterialTheme.typography.headlineMedium)
+                                        Text("Подготавливаем книгу…", style = MaterialTheme.typography.bodyMedium)
+                                        CircularProgressIndicator()
+                                    }
                                 }
                             }
                             Text(
@@ -531,8 +538,17 @@ private fun OpenReaderApp() {
                                                 Text(book.title, style = MaterialTheme.typography.titleMedium)
                                                 if (book.author.isNotBlank()) Text(book.author, style = MaterialTheme.typography.bodySmall)
                                                 Text(book.format.uppercase(), style = MaterialTheme.typography.labelSmall)
-                                                TextButton(onClick = { coverTargetUri = book.uri; coverPicker.launch(arrayOf("image/*")) }) { Text("Выбрать обложку") }
-                                                TextButton(onClick = { editingBook = book; editedTitle = book.title }) { Text("Переименовать") }
+                                                Box {
+                                                    IconButton(onClick = { menuBookUri = book.uri }) { Text("⋮", style = MaterialTheme.typography.headlineMedium) }
+                                                    DropdownMenu(expanded = menuBookUri == book.uri, onDismissRequest = { menuBookUri = null }) {
+                                                        DropdownMenuItem(text = { Text("Изменить название и автора") }, onClick = {
+                                                            editingBook = book; editedTitle = book.title; editedAuthor = book.author; menuBookUri = null
+                                                        })
+                                                        DropdownMenuItem(text = { Text("Сменить обложку") }, onClick = {
+                                                            menuBookUri = null; coverTargetUri = book.uri; coverPicker.launch(arrayOf("image/*"))
+                                                        })
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -548,14 +564,12 @@ private fun OpenReaderApp() {
         if (editingBook != null) {
             AlertDialog(
                 onDismissRequest = { editingBook = null },
-                title = { Text("Название книги") },
+                title = { Text("Сведения о книге") },
                 text = {
-                    OutlinedTextField(
-                        value = editedTitle,
-                        onValueChange = { editedTitle = it },
-                        label = { Text("Название") },
-                        singleLine = true
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(value = editedTitle, onValueChange = { editedTitle = it }, label = { Text("Название") }, singleLine = true)
+                        OutlinedTextField(value = editedAuthor, onValueChange = { editedAuthor = it }, label = { Text("Автор") }, singleLine = true)
+                    }
                 },
                 confirmButton = {
                     TextButton(onClick = {
@@ -563,7 +577,7 @@ private fun OpenReaderApp() {
                         val newTitle = editedTitle.trim()
                         if (original != null && newTitle.isNotEmpty()) {
                             val index = books.indexOfFirst { it.uri == original.uri }
-                            if (index >= 0) books[index] = original.copy(title = newTitle)
+                            if (index >= 0) books[index] = original.copy(title = newTitle, author = editedAuthor.trim())
                             // The selected book is derived from the updated library list.
                             saveBooks(context, books)
                             editingBook = null
