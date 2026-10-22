@@ -290,6 +290,17 @@ private fun OpenReaderApp() {
     var coverTargetUri by remember { mutableStateOf<String?>(null) }
     var fontSize by remember { mutableFloatStateOf(prefs.getFloat("font_size", 19f)) }
     var showSettings by remember { mutableStateOf(false) }
+    var showReaderSettings by remember { mutableStateOf(false) }
+    var readerTheme by remember { mutableStateOf(prefs.getString("reader_theme", "paper") ?: "paper") }
+    var readerSpacing by remember { mutableFloatStateOf(prefs.getFloat("reader_spacing", 1.5f)) }
+    var readerMargin by remember { mutableFloatStateOf(prefs.getFloat("reader_margin", 18f)) }
+    val readerBackground = when (readerTheme) {
+        "dark" -> androidx.compose.ui.graphics.Color(0xFF181818)
+        "sepia" -> androidx.compose.ui.graphics.Color(0xFFF1E3C8)
+        "light" -> androidx.compose.ui.graphics.Color.White
+        else -> androidx.compose.ui.graphics.Color(0xFFFAF7F0)
+    }
+    val readerInk = if (readerTheme == "dark") androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color(0xFF242424)
     var themeChoice by remember { mutableStateOf(prefs.getString("theme", "system") ?: "system") }
     val isDark = when (themeChoice) {
         "dark" -> true
@@ -431,15 +442,15 @@ private fun OpenReaderApp() {
                     var showControls by remember(book.uri) { mutableStateOf(false) }
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val widthPx = with(density) { (maxWidth - 36.dp).roundToPx() }
+                        val widthPx = with(density) { (maxWidth - (readerMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
                         val heightPx = with(density) { (maxHeight - 30.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
-                        val starts by key(content, widthPx, heightPx, fontPx) {
+                        val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
                             produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx, charPosition) {
                             value = withContext(Dispatchers.Default) {
-                                pageStarts(content, widthPx, heightPx, fontPx, charPosition)
+                                pageStarts(content, widthPx, heightPx, fontPx * readerSpacing / 1.5f, charPosition)
                             }
                             }
                         }
@@ -461,7 +472,7 @@ private fun OpenReaderApp() {
                         }
                         Column(Modifier.fillMaxSize()) {
                             Box(
-                                Modifier.weight(1f).fillMaxWidth()
+                                Modifier.weight(1f).fillMaxWidth().background(readerBackground)
                                     .pointerInput(readyStarts, page) {
                                         var dragDistance = 0f
                                         detectHorizontalDragGestures(
@@ -488,8 +499,9 @@ private fun OpenReaderApp() {
                                     Text(
                                         styledPage(content.substring(readyStarts[page].coerceIn(0, content.length), endChar.coerceIn(readyStarts[page].coerceIn(0, content.length), content.length))),
                                         fontSize = fontSize.sp,
-                                        lineHeight = (fontSize * 1.5f).sp,
-                                        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)
+                                        lineHeight = (fontSize * readerSpacing).sp,
+                                        color = readerInk,
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = readerMargin.dp)
                                     )
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -510,7 +522,7 @@ private fun OpenReaderApp() {
                         if (showControls) {
                             Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(12f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A−") }
-                                Text("Шрифт: ${fontSize.toInt()}")
+                                TextButton(onClick = { showReaderSettings = true }) { Text("Оформление") }
                                 TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A+") }
                             }
                         }
@@ -599,6 +611,45 @@ private fun OpenReaderApp() {
                 }
             )
         }
+        if (showReaderSettings) {
+            AlertDialog(
+                onDismissRequest = { showReaderSettings = false },
+                title = { Text("Оформление книги") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Цвет страниц")
+                        listOf("paper" to "Бумажный", "light" to "Белый", "sepia" to "Сепия", "dark" to "Тёмный").forEach { (v, label) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = readerTheme == v, onClick = {
+                                    readerTheme = v
+                                    prefs.edit().putString("reader_theme", v).apply()
+                                })
+                                Text(label, modifier = Modifier.clickable {
+                                    readerTheme = v
+                                    prefs.edit().putString("reader_theme", v).apply()
+                                })
+                            }
+                        }
+                        Text("Размер шрифта")
+                        Slider(value = fontSize, onValueChange = {
+                            fontSize = it
+                            prefs.edit().putFloat("font_size", it).apply()
+                        }, valueRange = 12f..32f, steps = 19)
+                        Text("Межстрочный интервал")
+                        Slider(value = readerSpacing, onValueChange = {
+                            readerSpacing = it
+                            prefs.edit().putFloat("reader_spacing", it).apply()
+                        }, valueRange = 1.1f..2.0f)
+                        Text("Поля страницы")
+                        Slider(value = readerMargin, onValueChange = {
+                            readerMargin = it
+                            prefs.edit().putFloat("reader_margin", it).apply()
+                        }, valueRange = 8f..40f)
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showReaderSettings = false }) { Text("Готово") } }
+            )
+        }
         if (showSettings) {
             AlertDialog(
                 onDismissRequest = { showSettings = false },
@@ -619,6 +670,7 @@ private fun OpenReaderApp() {
                             }
                         }
                         HorizontalDivider()
+                        TextButton(onClick = { showSettings = false; showReaderSettings = true }) { Text("Оформление книги →") }
                         Text("Размер текста книги: ${fontSize.toInt()}")
                         Slider(value = fontSize, onValueChange = {
                             fontSize = it
