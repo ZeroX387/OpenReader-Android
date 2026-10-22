@@ -307,18 +307,18 @@ private fun OpenReaderApp() {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.3.4"
+    val appVersion = "0.3.6"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         try {
             val latest = withContext(Dispatchers.IO) {
-                val connection = java.net.URL("https://api.github.com/repos/ZeroX387/OpenReader-Android/releases/latest").openConnection() as java.net.HttpURLConnection
+                val connection = java.net.URL("https://api.github.com/repos/ZeroX387/OpenReader-Android/releases?per_page=10").openConnection() as java.net.HttpURLConnection
                 connection.connectTimeout = 5000
                 connection.readTimeout = 5000
                 connection.setRequestProperty("Accept", "application/vnd.github+json")
                 try {
-                    org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-                        .optString("tag_name").removePrefix("v")
+                    org.json.JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
+                        .let { releases -> (0 until releases.length()).map { releases.getJSONObject(it) }.firstOrNull { !it.optBoolean("draft") }?.optString("tag_name") ?: "" }.removePrefix("v")
                 } finally { connection.disconnect() }
             }
             val installed = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0"
