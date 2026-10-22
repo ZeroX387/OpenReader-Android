@@ -522,7 +522,7 @@ private fun OpenReaderApp() {
                         if (showControls) {
                             Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(12f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A−") }
-                                TextButton(onClick = { showReaderSettings = true }) { Text("Оформление") }
+                                IconButton(onClick = { showReaderSettings = true }) { Text("⚙️", style = MaterialTheme.typography.titleLarge) }
                                 TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A+") }
                             }
                         }
@@ -616,7 +616,7 @@ private fun OpenReaderApp() {
                 onDismissRequest = { showReaderSettings = false },
                 title = { Text("Оформление книги") },
                 text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Цвет страниц")
                         listOf("paper" to "Бумажный", "light" to "Белый", "sepia" to "Сепия", "dark" to "Тёмный").forEach { (v, label) ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -670,12 +670,7 @@ private fun OpenReaderApp() {
                             }
                         }
                         HorizontalDivider()
-                        TextButton(onClick = { showSettings = false; showReaderSettings = true }) { Text("Оформление книги →") }
-                        Text("Размер текста книги: ${fontSize.toInt()}")
-                        Slider(value = fontSize, onValueChange = {
-                            fontSize = it
-                            prefs.edit().putFloat("font_size", it).apply()
-                        }, valueRange = 12f..32f, steps = 19)
+
                     }
                 },
                 confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Готово") } }
