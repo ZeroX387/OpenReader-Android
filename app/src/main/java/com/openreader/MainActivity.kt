@@ -408,10 +408,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 loadedBookUri = book.uri
                 if (book.format == "fb2" || book.format == "epub") {
                     val sourceName = nameHintDisplayName(context, Uri.parse(book.uri)).substringBeforeLast(".")
-                    if (book.title == sourceName || book.author.isBlank()) {
+                    if (book.title == sourceName || book.title.startsWith("openreader_") || book.author.isBlank()) {
                         val index = books.indexOfFirst { it.uri == book.uri }
                         if (index >= 0) {
-                            books[index] = book.copy(title = if (book.title == sourceName && loaded.second.isNotBlank()) loaded.second else book.title, author = loaded.third.ifBlank { book.author })
+                            books[index] = book.copy(title = if ((book.title == sourceName || book.title.startsWith("openreader_")) && loaded.second.isNotBlank()) loaded.second else book.title, author = loaded.third.ifBlank { book.author })
                             saveBooks(context, books)
                         }
                     }
@@ -487,7 +487,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             }
                         } ?: error("Не удалось прочитать выбранный файл.")
                     } catch (e: Exception) { file.delete(); throw e }
-                    LocalBook(Uri.fromFile(file).toString(), filename.substringBeforeLast('.').ifBlank { filename }, format, addedAt = System.currentTimeMillis())
+                    LocalBook(Uri.fromFile(file).toString(), if (format == "epub") "openreader_" + file.nameWithoutExtension else filename.substringBeforeLast('.').ifBlank { filename }, format, addedAt = System.currentTimeMillis())
                 }
                 books.add(0, imported)
                 saveBooks(context, books)
