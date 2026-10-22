@@ -353,6 +353,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 connection.setRequestProperty("User-Agent", "OpenReader-Android")
                 connection.setRequestProperty("Cache-Control", "no-cache")
                 try {
+                    if (connection.responseCode != 200) error("GitHub HTTP " + connection.responseCode)
                     org.json.JSONArray(connection.inputStream.bufferedReader().use { it.readText() })
                         .let { releases -> (0 until releases.length()).map { releases.getJSONObject(it) }.firstOrNull { !it.optBoolean("draft") }?.optString("tag_name") ?: "" }.removePrefix("v")
                 } finally { connection.disconnect() }
@@ -371,7 +372,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 updateStatus = "Установлена актуальная версия $installed"
             }
         } catch (e: Exception) {
-            updateStatus = "Ошибка проверки: " + (e.message ?: e.javaClass.simpleName)
+            updateStatus = "Ошибка проверки (" + e.javaClass.simpleName + "): " + (e.message ?: "нет подробностей")
         }
     }
     var showWhatsNew by remember { mutableStateOf(prefs.getString("last_seen_version", null) != appVersion) }
