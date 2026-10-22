@@ -289,6 +289,15 @@ private fun OpenReaderApp() {
     var menuBookUri by remember { mutableStateOf<String?>(null) }
     var coverTargetUri by remember { mutableStateOf<String?>(null) }
     var fontSize by remember { mutableFloatStateOf(prefs.getFloat("font_size", 19f)) }
+    var showSettings by remember { mutableStateOf(false) }
+    var themeChoice by remember { mutableStateOf(prefs.getString("theme", "system") ?: "system") }
+    val isDark = when (themeChoice) {
+        "dark" -> true
+        "light" -> false
+        else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    }
+    val appVersion = "0.3.4"
+    var showWhatsNew by remember { mutableStateOf(prefs.getString("last_seen_version", null) != appVersion) }
 
     fun openBook(book: LocalBook) {
         currentBookUri = book.uri
@@ -369,7 +378,7 @@ private fun OpenReaderApp() {
         coverTargetUri = null
     }
 
-    MaterialTheme {
+    MaterialTheme(colorScheme = if (isDark) darkColorScheme() else lightColorScheme()) {
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -379,6 +388,13 @@ private fun OpenReaderApp() {
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                    },
+                    actions = {
+                        if (currentBook == null) {
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(androidx.compose.material.icons.Icons.Default.Settings, contentDescription = "Настройки")
+                            }
+                        }
                     },
                     navigationIcon = {
                         if (currentBook != null) {
@@ -420,9 +436,11 @@ private fun OpenReaderApp() {
                         // doesn't change when the controls are shown or hidden.
                         val heightPx = with(density) { (maxHeight - 30.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
-                        val starts by produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx, charPosition) {
+                        val starts by key(content, widthPx, heightPx, fontPx) {
+                            produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx, charPosition) {
                             value = withContext(Dispatchers.Default) {
                                 pageStarts(content, widthPx, heightPx, fontPx, charPosition)
+                            }
                             }
                         }
                         val safePosition = charPosition.coerceIn(0, content.length)
@@ -564,6 +582,52 @@ private fun OpenReaderApp() {
                     }
                 }
             }
+        }
+        if (showWhatsNew) {
+            AlertDialog(
+                onDismissRequest = {
+                    prefs.edit().putString("last_seen_version", appVersion).apply()
+                    showWhatsNew = false
+                },
+                title = { Text("Что нового в OpenReader $appVersion") },
+                text = { Text("Настройки оформления и выбор темы. Улучшено отображение страниц при повороте экрана.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        prefs.edit().putString("last_seen_version", appVersion).apply()
+                        showWhatsNew = false
+                    }) { Text("Понятно") }
+                }
+            )
+        }
+        if (showSettings) {
+            AlertDialog(
+                onDismissRequest = { showSettings = false },
+                title = { Text("Настройки") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Тема оформления")
+                        listOf("system" to "Как в телефоне", "light" to "Светлая", "dark" to "Тёмная").forEach { (value, label) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = themeChoice == value, onClick = {
+                                    themeChoice = value
+                                    prefs.edit().putString("theme", value).apply()
+                                })
+                                Text(label, modifier = Modifier.clickable {
+                                    themeChoice = value
+                                    prefs.edit().putString("theme", value).apply()
+                                })
+                            }
+                        }
+                        HorizontalDivider()
+                        Text("Размер текста книги: ${fontSize.toInt()}")
+                        Slider(value = fontSize, onValueChange = {
+                            fontSize = it
+                            prefs.edit().putFloat("font_size", it).apply()
+                        }, valueRange = 12f..32f, steps = 19)
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showSettings = false }) { Text("Готово") } }
+            )
         }
         if (editingBook != null) {
             AlertDialog(
