@@ -308,6 +308,29 @@ private fun OpenReaderApp() {
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
     val appVersion = "0.3.4"
+    var availableUpdate by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        try {
+            val latest = withContext(Dispatchers.IO) {
+                val connection = java.net.URL("https://api.github.com/repos/ZeroX387/OpenReader-Android/releases/latest").openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                connection.setRequestProperty("Accept", "application/vnd.github+json")
+                try {
+                    org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                        .optString("tag_name").removePrefix("v")
+                } finally { connection.disconnect() }
+            }
+            val installed = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0"
+            fun numbers(v: String) = v.split(".").map { it.toIntOrNull() ?: 0 }
+            val a = numbers(latest)
+            val b = numbers(installed)
+            val firstDifference = (0..2).firstOrNull { a.getOrElse(it) { 0 } != b.getOrElse(it) { 0 } }
+            if (firstDifference != null && a.getOrElse(firstDifference) { 0 } > b.getOrElse(firstDifference) { 0 }) {
+                availableUpdate = latest
+            }
+        } catch (_: Exception) { }
+    }
     var showWhatsNew by remember { mutableStateOf(prefs.getString("last_seen_version", null) != appVersion) }
 
     fun openBook(book: LocalBook) {
@@ -594,6 +617,24 @@ private fun OpenReaderApp() {
                     }
                 }
             }
+        }
+        if (availableUpdate != null) {
+            AlertDialog(
+                onDismissRequest = { availableUpdate = null },
+                title = { Text("Доступно обновление") },
+                text = { Text("Вышла новая версия OpenReader. Скачать APK?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val version = availableUpdate
+                        availableUpdate = null
+                        if (version != null) {
+                            val url = "https://github.com/ZeroX387/OpenReader-Android/releases/tag/v" + version
+                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)))
+                        }
+                    }) { Text("Скачать") }
+                },
+                dismissButton = { TextButton(onClick = { availableUpdate = null }) { Text("Позже") } }
+            )
         }
         if (showWhatsNew) {
             AlertDialog(
