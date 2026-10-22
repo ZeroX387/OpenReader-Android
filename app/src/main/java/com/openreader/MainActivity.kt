@@ -637,7 +637,33 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             if (books.isEmpty()) {
                                 Text("Книг пока нет. Нажмите кнопку выше, чтобы выбрать TXT или FB2.")
                             }
-                            books.forEach { book ->
+                        }
+                        if (selectedTab == 2) {
+                            Text("Коллекции: " + books.map { it.collection }.filter { it.isNotBlank() }.distinct().joinToString(", ").ifBlank { "пока нет" })
+                            OutlinedButton(onClick = { collectionDialog = true }) { Text("+ Создать коллекцию") }
+                        }
+                        if (selectedTab != 0 || books.isNotEmpty()) {
+                            val sortedBooks = when (sortMode) {
+                                "Название" -> books.sortedBy { it.title.lowercase() }
+                                "Автор" -> books.sortedWith(compareBy<LocalBook> { it.author.lowercase() }.thenBy { it.title.lowercase() })
+                                "Формат" -> books.sortedWith(compareBy<LocalBook> { it.format }.thenBy { it.title.lowercase() })
+                                "Прогресс" -> books.sortedByDescending { b -> if (b.finished) 100 else if (b.length > 0) (prefs.getInt("page_char_" + b.uri.hashCode(), 0).toLong() * 100 / b.length).toInt() else 0 }
+                                "Жанр" -> books.sortedBy { it.genre.lowercase() }
+                                else -> books.sortedByDescending { it.addedAt }
+                            }
+                            if (selectedTab == 0) {
+                                Box {
+                                    OutlinedButton(onClick = { sortExpanded = true }) { Text("Сортировка: " + sortMode + " ▾") }
+                                    DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
+                                        listOf("Добавление", "Название", "Автор", "Жанр", "Формат", "Прогресс").forEach { option ->
+                                            DropdownMenuItem(text = { Text(option) }, onClick = {
+                                                sortMode = option; prefs.edit().putString("sort_mode", option).apply(); sortExpanded = false
+                                            })
+                                        }
+                                    }
+                                }
+                            }
+                            sortedBooks.filter { selectedTab == 0 || (selectedTab == 1 && it.favorite) || (selectedTab == 3 && it.finished) || (selectedTab == 2 && it.collection.isNotBlank()) }.forEach { book ->
                                 Card(onClick = { openBook(book) }, modifier = Modifier.fillMaxWidth()) {
                                     Column(Modifier.padding(16.dp)) {
                                         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -667,7 +693,19 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                             Column {
                                                 Text(book.title, style = MaterialTheme.typography.titleMedium)
                                                 if (book.author.isNotBlank()) Text(book.author, style = MaterialTheme.typography.bodySmall)
-                                                Text(book.format.uppercase(), style = MaterialTheme.typography.labelSmall)
+                                                Text(book.format.uppercase() + (if (book.collection.isNotBlank()) " · " + book.collection else ""), style = MaterialTheme.typography.labelSmall)
+                                                val percent = if (book.finished) 100 else if (book.length > 0) (prefs.getInt("page_char_" + book.uri.hashCode(), 0).toLong() * 100 / book.length).toInt().coerceIn(0, 99) else 0
+                                                Text("Прочитано: $percent%", style = MaterialTheme.typography.bodySmall)
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    IconButton(onClick = {
+                                                        val i = books.indexOfFirst { it.uri == book.uri }
+                                                        if (i >= 0) { books[i] = books[i].copy(favorite = !books[i].favorite); saveBooks(context, books) }
+                                                    }) { Text(if (book.favorite) "★" else "☆", color = if (book.favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
+                                                    IconButton(onClick = {
+                                                        val i = books.indexOfFirst { it.uri == book.uri }
+                                                        if (i >= 0) { books[i] = books[i].copy(finished = !books[i].finished); saveBooks(context, books) }
+                                                    }) { Text(if (book.finished) "☑" else "☐", color = if (book.finished) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
+                                                }
                                                 Box {
                                                     IconButton(onClick = { menuBookUri = book.uri }) { Text("⋮", style = MaterialTheme.typography.headlineMedium) }
                                                     DropdownMenu(expanded = menuBookUri == book.uri, onDismissRequest = { menuBookUri = null }) {
@@ -676,6 +714,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                                         })
                                                         DropdownMenuItem(text = { Text("Сменить обложку") }, onClick = {
                                                             menuBookUri = null; coverTargetUri = book.uri; coverPicker.launch(arrayOf("image/*"))
+                                                        })
+                                                        DropdownMenuItem(text = { Text("Добавить в коллекцию") }, onClick = {
+                                                            collectionTarget = book; collectionName = book.collection; menuBookUri = null
                                                         })
                                                         DropdownMenuItem(text = { Text("Убрать из библиотеки") }, onClick = {
                                                             menuBookUri = null; bookToRemove = book
@@ -687,8 +728,6 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     }
                                 }
                             }
-                        } else {
-                            Text("Этот раздел появится в следующих версиях.")
                         }
                     }
                 }
