@@ -249,7 +249,11 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float,
         lineStarts.add(next)
         current = next
     }
-    return lineStarts.distinct().map { layout.getLineStart(it) }
+    // Keep the exact saved character offset as the first visible character.
+    // Snapping to a reflowed line boundary can skip text on rotation.
+    val exactAnchor = anchor.coerceIn(0, text.lastIndex)
+    return (lineStarts.map { layout.getLineStart(it) } + exactAnchor)
+        .distinct().sorted()
 }
 
 // Style chapter titles without modifying the source string or saved character offsets.
