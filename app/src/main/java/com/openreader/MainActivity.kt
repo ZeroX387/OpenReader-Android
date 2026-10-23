@@ -235,7 +235,7 @@ private fun cleanBookText(raw: String): String {
         .replace(Regex("\\n{3,}"), "\n\n").trim()
 }
 
-private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float, anchor: Int): List<Int> {
+private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float, anchor: Int, spacing: Float): List<Int> {
     if (text.isEmpty() || widthPx <= 0 || heightPx <= 0) return listOf(0)
     val paint = TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         textSize = fontPx
@@ -243,7 +243,7 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float,
     }
     val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx)
         .setIncludePad(false)
-        .setLineSpacing(fontPx * 0.5f, 1f)
+        .setLineSpacing((fontPx * (spacing - 1f)).coerceAtLeast(0f), 1f)
         .build()
     if (layout.lineCount == 0) return listOf(0)
     val anchorLine = layout.getLineForOffset(anchor.coerceIn(0, text.lastIndex))
@@ -342,7 +342,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.4"
+    val appVersion = "0.4.5"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -580,12 +580,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         val widthPx = with(density) { (maxWidth - (readerMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
-                        val heightPx = with(density) { (maxHeight - 30.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 54.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
                         val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
                             produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx, charPosition) {
                             value = withContext(Dispatchers.Default) {
-                                pageStarts(content, widthPx, heightPx, fontPx * readerSpacing / 1.5f, charPosition)
+                                pageStarts(content, widthPx, heightPx, fontPx, charPosition, readerSpacing)
                             }
                             }
                         }
@@ -636,7 +636,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         fontSize = fontSize.sp,
                                         lineHeight = (fontSize * readerSpacing).sp,
                                         color = readerInk,
-                                        modifier = Modifier.fillMaxSize().padding(horizontal = readerMargin.dp)
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = readerMargin.dp, vertical = 8.dp)
                                     )
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
