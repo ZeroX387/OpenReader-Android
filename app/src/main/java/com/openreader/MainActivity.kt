@@ -345,7 +345,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.10"
+    val appVersion = "0.4.11"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -391,7 +391,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.7" to "Книжные поля со всех четырёх сторон. Название книги и кнопка назад скрываются вместе с панелью управления.",
         "0.4.8" to "Уменьшен нижний отступ страницы, чтобы на экране помещалось больше текста.",
         "0.4.9" to "Первый этап книжной типографики: выравнивание по ширине и улучшенная разбивка строк. Полноценные абзацные отступы и единый движок вёрстки ещё в разработке.",
-        "0.4.10" to "Теперь окно «Что нового» показывает изменения всех пропущенных версий. Счётчик страниц стал незаметнее и получил цвет книжной страницы."
+        "0.4.10" to "Теперь окно «Что нового» показывает изменения всех пропущенных версий. Счётчик страниц стал незаметнее и получил цвет книжной страницы.",
+        "0.4.11" to "В оформлении книги появился живой предпросмотр размера шрифта и межстрочного интервала, а также кнопка возврата к стандартным значениям."
     )
     // Include every release since the last version the reader actually opened.
     fun versionParts(version: String) = version.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
@@ -1016,16 +1017,29 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                 })
                             }
                         }
-                        Text("Размер шрифта")
+                        Text("Размер шрифта: ${fontSize.toInt()} sp")
                         Slider(value = fontSize, onValueChange = {
                             fontSize = it
                             prefs.edit().putFloat("font_size", it).apply()
                         }, valueRange = 12f..32f, steps = 19)
-                        Text("Межстрочный интервал")
+                        Text("Межстрочный интервал: ${String.format(java.util.Locale.US, "%.2f", readerSpacing)}")
                         Slider(value = readerSpacing, onValueChange = {
                             readerSpacing = it
                             prefs.edit().putFloat("reader_spacing", it).apply()
                         }, valueRange = 1.1f..2.0f)
+                        Text("Предпросмотр", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "Однажды в студёную зимнюю пору\nЯ из лесу вышел; был сильный мороз.\nИдёт себе лесом, глядит — поднимается солнце.",
+                            fontSize = fontSize.sp,
+                            lineHeight = (fontSize * readerSpacing).sp,
+                            color = readerInk,
+                            modifier = Modifier.fillMaxWidth().background(readerBackground).padding(12.dp)
+                        )
+                        TextButton(onClick = {
+                            fontSize = 19f
+                            readerSpacing = 1.5f
+                            prefs.edit().putFloat("font_size", fontSize).putFloat("reader_spacing", readerSpacing).apply()
+                        }) { Text("Вернуть стандарт: 19 sp / 1,5") }
                         Text("Поля страницы")
                         Slider(value = readerMargin, onValueChange = {
                             readerMargin = it
