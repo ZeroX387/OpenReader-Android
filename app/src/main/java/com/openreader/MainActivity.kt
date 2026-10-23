@@ -342,7 +342,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.6"
+    val appVersion = "0.4.7"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -384,7 +384,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.3" to "Улучшены названия и авторы EPUB, импортированных из других приложений. Исправлено отображение переносов строк. Добавлена проверка обновлений.",
         "0.4.4" to "В настройках появился выбор языка: как в системе, русский или английский. Начат перевод интерфейса.",
         "0.4.5" to "Улучшен расчёт страниц и межстрочных интервалов. Добавлен запас пространства, чтобы последняя строка не обрезалась.",
-        "0.4.6" to "Исправлено окно «Что нового»: теперь описание соответствует установленной версии, а не повторяет старое обновление."
+        "0.4.6" to "Исправлено окно «Что нового»: теперь описание соответствует установленной версии, а не повторяет старое обновление.",
+        "0.4.7" to "Книжные поля со всех четырёх сторон. Название книги и кнопка назад скрываются вместе с панелью управления."
     )
     val currentReleaseNotes = releaseNotes[appVersion]
         ?: "Обновление OpenReader $appVersion. Подробности доступны на странице выпуска GitHub."
@@ -524,32 +525,20 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         coverTargetUri = null
     }
 
+    var showControls by remember(currentBookUri) { mutableStateOf(false) }
     MaterialTheme(colorScheme = if (isDark) darkColorScheme() else lightColorScheme()) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            currentBook?.title ?: "OpenReader",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    actions = {
-                        if (currentBook == null) {
+                if (currentBook == null) {
+                    TopAppBar(
+                        title = { Text("OpenReader") },
+                        actions = {
                             IconButton(onClick = { showSettings = true }) {
                                 Text("⚙️", style = MaterialTheme.typography.titleLarge)
                             }
                         }
-                    },
-                    navigationIcon = {
-                        if (currentBook != null) {
-                            TextButton(onClick = { currentBookUri = null; content = "" }) {
-                                Text("← Назад")
-                            }
-                        }
-                    }
-                )
+                    )
+                }
             },
             bottomBar = {
                 if (currentBook == null) {
@@ -574,7 +563,6 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     var charPosition by rememberSaveable(book.uri) {
                         mutableIntStateOf(prefs.getInt(positionKey, 0).coerceAtLeast(0))
                     }
-                    var showControls by remember(book.uri) { mutableStateOf(false) }
                     LaunchedEffect(book.uri) { bookmarkPosition = prefs.getInt("jump_" + book.uri.hashCode(), -1) }
                     LaunchedEffect(book.uri, bookmarkPosition) {
                         if (bookmarkPosition >= 0) {
@@ -586,10 +574,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val widthPx = with(density) { (maxWidth - (readerMargin * 2).dp).roundToPx() }
+                        val effectiveMargin = readerMargin.coerceAtLeast(22f)
+                        val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
-                        val heightPx = with(density) { (maxHeight - 54.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 86.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
                         val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
                             produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx, charPosition) {
@@ -645,7 +634,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         fontSize = fontSize.sp,
                                         lineHeight = (fontSize * readerSpacing).sp,
                                         color = readerInk,
-                                        modifier = Modifier.fillMaxSize().padding(horizontal = readerMargin.dp, vertical = 8.dp)
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = effectiveMargin.dp, vertical = 24.dp)
                                     )
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -664,7 +653,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             )
                         }
                         if (showControls) {
-                            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(onClick = { currentBookUri = null; content = "" }) { Text("← Назад") }
+                                    Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = {
                                     val key = "bookmarks_" + book.uri.hashCode()
                                     val items = org.json.JSONArray(prefs.getString(key, "[]") ?: "[]")
@@ -682,6 +676,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                 TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(12f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A−") }
                                 IconButton(onClick = { showReaderSettings = true }) { Text("⚙️", style = MaterialTheme.typography.titleLarge) }
                                 TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A+") }
+                            }
                             }
                         }
                     }
