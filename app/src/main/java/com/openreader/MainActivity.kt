@@ -244,6 +244,9 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float,
     val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx)
         .setIncludePad(false)
         .setLineSpacing((fontPx * (spacing - 1f)).coerceAtLeast(0f), 1f)
+        .setJustificationMode(android.text.Layout.JUSTIFICATION_MODE_INTER_WORD)
+        .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY)
+        .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NORMAL)
         .build()
     if (layout.lineCount == 0) return listOf(0)
     val anchorLine = layout.getLineForOffset(anchor.coerceIn(0, text.lastIndex))
@@ -342,7 +345,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.8"
+    val appVersion = "0.4.9"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -386,7 +389,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.5" to "Улучшен расчёт страниц и межстрочных интервалов. Добавлен запас пространства, чтобы последняя строка не обрезалась.",
         "0.4.6" to "Исправлено окно «Что нового»: теперь описание соответствует установленной версии, а не повторяет старое обновление.",
         "0.4.7" to "Книжные поля со всех четырёх сторон. Название книги и кнопка назад скрываются вместе с панелью управления.",
-        "0.4.8" to "Уменьшен нижний отступ страницы, чтобы на экране помещалось больше текста."
+        "0.4.8" to "Уменьшен нижний отступ страницы, чтобы на экране помещалось больше текста.",
+        "0.4.9" to "Первый этап книжной типографики: выравнивание по ширине и улучшенная разбивка строк. Полноценные абзацные отступы и единый движок вёрстки ещё в разработке."
     )
     val currentReleaseNotes = releaseNotes[appVersion]
         ?: "Обновление OpenReader $appVersion. Подробности доступны на странице выпуска GitHub."
@@ -635,6 +639,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         fontSize = fontSize.sp,
                                         lineHeight = (fontSize * readerSpacing).sp,
                                         color = readerInk,
+                                        textAlign = TextAlign.Justify,
                                         modifier = Modifier.fillMaxSize().padding(horizontal = effectiveMargin.dp, vertical = 12.dp)
                                     )
                                 } else {
