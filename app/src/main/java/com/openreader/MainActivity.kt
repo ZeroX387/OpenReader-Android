@@ -345,7 +345,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.9"
+    val appVersion = "0.4.10"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -390,10 +390,31 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.6" to "Исправлено окно «Что нового»: теперь описание соответствует установленной версии, а не повторяет старое обновление.",
         "0.4.7" to "Книжные поля со всех четырёх сторон. Название книги и кнопка назад скрываются вместе с панелью управления.",
         "0.4.8" to "Уменьшен нижний отступ страницы, чтобы на экране помещалось больше текста.",
-        "0.4.9" to "Первый этап книжной типографики: выравнивание по ширине и улучшенная разбивка строк. Полноценные абзацные отступы и единый движок вёрстки ещё в разработке."
+        "0.4.9" to "Первый этап книжной типографики: выравнивание по ширине и улучшенная разбивка строк. Полноценные абзацные отступы и единый движок вёрстки ещё в разработке.",
+        "0.4.10" to "Теперь окно «Что нового» показывает изменения всех пропущенных версий. Счётчик страниц стал незаметнее и получил цвет книжной страницы."
     )
-    val currentReleaseNotes = releaseNotes[appVersion]
-        ?: "Обновление OpenReader $appVersion. Подробности доступны на странице выпуска GitHub."
+    // Include every release since the last version the reader actually opened.
+    fun versionParts(version: String) = version.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
+    fun compareVersions(a: String, b: String): Int {
+        val left = versionParts(a)
+        val right = versionParts(b)
+        for (index in 0 until maxOf(left.size, right.size)) {
+            val difference = left.getOrElse(index) { 0 }.compareTo(right.getOrElse(index) { 0 })
+            if (difference != 0) return difference
+        }
+        return 0
+    }
+    val previousVersion = prefs.getString("last_seen_version", null)
+    val missedReleaseNotes = releaseNotes.entries
+        .filter { (version, _) ->
+            compareVersions(version, appVersion) <= 0 &&
+                (previousVersion == null && version == appVersion ||
+                    previousVersion != null && compareVersions(version, previousVersion) > 0)
+        }
+        .sortedWith { a, b -> compareVersions(a.key, b.key) }
+    val currentReleaseNotes = if (missedReleaseNotes.isEmpty()) {
+        releaseNotes[appVersion] ?: "Обновление OpenReader $appVersion."
+    } else missedReleaseNotes.joinToString("\n\n") { (version, description) -> "$version — $description" }
     var showWhatsNew by remember { mutableStateOf(prefs.getString("last_seen_version", null) != appVersion) }
 
     fun openBook(book: LocalBook) {
@@ -653,9 +674,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             }
                             Text(
                                 if (loadedBookUri != book.uri || content.isEmpty() || readyStarts == null) "Загрузка книги…" else "${page + 1} / ${readyStarts.size}",
-                                modifier = Modifier.fillMaxWidth().height(30.dp),
+                                modifier = Modifier.fillMaxWidth().height(30.dp).background(readerBackground),
+                                color = readerInk.copy(alpha = 0.55f),
                                 textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelSmall
                             )
                         }
                         if (showControls) {
