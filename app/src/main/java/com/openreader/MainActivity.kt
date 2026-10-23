@@ -342,7 +342,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.5"
+    val appVersion = "0.4.6"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -379,6 +379,15 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
             updateStatus = "Ошибка проверки (" + e.javaClass.simpleName + "): " + (e.message ?: "нет подробностей")
         }
     }
+    // Release notes belong to the installed version, never to a fixed old announcement.
+    val releaseNotes = mapOf(
+        "0.4.3" to "Улучшены названия и авторы EPUB, импортированных из других приложений. Исправлено отображение переносов строк. Добавлена проверка обновлений.",
+        "0.4.4" to "В настройках появился выбор языка: как в системе, русский или английский. Начат перевод интерфейса.",
+        "0.4.5" to "Улучшен расчёт страниц и межстрочных интервалов. Добавлен запас пространства, чтобы последняя строка не обрезалась.",
+        "0.4.6" to "Исправлено окно «Что нового»: теперь описание соответствует установленной версии, а не повторяет старое обновление."
+    )
+    val currentReleaseNotes = releaseNotes[appVersion]
+        ?: "Обновление OpenReader $appVersion. Подробности доступны на странице выпуска GitHub."
     var showWhatsNew by remember { mutableStateOf(prefs.getString("last_seen_version", null) != appVersion) }
 
     fun openBook(book: LocalBook) {
@@ -956,7 +965,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     showWhatsNew = false
                 },
                 title = { Text("Что нового в OpenReader $appVersion") },
-                text = { Text("Исправлена ошибка открытия EPUB на Android: неподдерживаемая настройка XML-парсера больше не блокирует чтение.") },
+                text = { Text(currentReleaseNotes) },
                 confirmButton = {
                     TextButton(onClick = {
                         prefs.edit().putString("last_seen_version", appVersion).apply()
