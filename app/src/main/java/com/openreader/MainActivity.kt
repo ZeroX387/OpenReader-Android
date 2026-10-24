@@ -345,7 +345,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.11"
+    val appVersion = "0.4.12-beta"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -366,7 +366,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 } finally { connection.disconnect() }
             }
             val installed = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0"
-            fun numbers(v: String) = v.split(".").map { it.toIntOrNull() ?: 0 }
+            fun numbers(v: String) = v.removePrefix("v").substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
             val a = numbers(latest)
             val b = numbers(installed)
             val firstDifference = (0..2).firstOrNull { a.getOrElse(it) { 0 } != b.getOrElse(it) { 0 } }
@@ -392,10 +392,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.8" to "Уменьшен нижний отступ страницы, чтобы на экране помещалось больше текста.",
         "0.4.9" to "Первый этап книжной типографики: выравнивание по ширине и улучшенная разбивка строк. Полноценные абзацные отступы и единый движок вёрстки ещё в разработке.",
         "0.4.10" to "Теперь окно «Что нового» показывает изменения всех пропущенных версий. Счётчик страниц стал незаметнее и получил цвет книжной страницы.",
-        "0.4.11" to "В оформлении книги появился живой предпросмотр размера шрифта и межстрочного интервала, а также кнопка возврата к стандартным значениям."
+        "0.4.11" to "В оформлении книги появился живой предпросмотр размера шрифта и межстрочного интервала, а также кнопка возврата к стандартным значениям.",
+        "0.4.12-beta" to "Добавлена пометка beta. Начата подготовка общего движка чтения для всех форматов книг."
     )
     // Include every release since the last version the reader actually opened.
-    fun versionParts(version: String) = version.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
+    fun versionParts(version: String) = version.removePrefix("v").substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
     fun compareVersions(a: String, b: String): Int {
         val left = versionParts(a)
         val right = versionParts(b)
@@ -558,7 +559,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
             topBar = {
                 if (currentBook == null) {
                     TopAppBar(
-                        title = { Text("OpenReader") },
+                        title = { Text("OpenReader beta") },
                         actions = {
                             IconButton(onClick = { showSettings = true }) {
                                 Text("⚙️", style = MaterialTheme.typography.titleLarge)
