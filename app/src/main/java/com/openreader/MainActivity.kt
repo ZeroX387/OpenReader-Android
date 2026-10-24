@@ -345,7 +345,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.12-beta"
+    val appVersion = "0.4.13-beta"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -393,7 +393,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.9" to "Первый этап книжной типографики: выравнивание по ширине и улучшенная разбивка строк. Полноценные абзацные отступы и единый движок вёрстки ещё в разработке.",
         "0.4.10" to "Теперь окно «Что нового» показывает изменения всех пропущенных версий. Счётчик страниц стал незаметнее и получил цвет книжной страницы.",
         "0.4.11" to "В оформлении книги появился живой предпросмотр размера шрифта и межстрочного интервала, а также кнопка возврата к стандартным значениям.",
-        "0.4.12-beta" to "Добавлена пометка beta. Начата подготовка общего движка чтения для всех форматов книг."
+        "0.4.12-beta" to "Добавлена пометка beta. Начата подготовка общего движка чтения для всех форматов книг.",
+        "0.4.13-beta" to "Начата общая архитектура чтения: EPUB, FB2 и текстовые файлы теперь передают содержимое через единый ReadingDocument."
     )
     // Include every release since the last version the reader actually opened.
     fun versionParts(version: String) = version.removePrefix("v").substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
@@ -435,17 +436,17 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 val loaded = withContext(Dispatchers.IO) {
                     if (book.format == "epub") {
                         val doc = readEpub(context, Uri.parse(book.uri))
-                        Triple(doc.text, doc.title, doc.author)
+                        ReadingDocument(doc.text, doc.title, doc.author, "epub")
                     } else if (book.format == "fb2") {
                         val doc = readFb2(context, Uri.parse(book.uri))
                         val text = (if (doc.annotation.isNotBlank()) "Аннотация\n\n${cleanBookText(doc.annotation)}\n\n" else "") + doc.body
-                        Triple(text, doc.title, doc.authors)
-                    } else Triple(cleanBookText(readTxt(context, Uri.parse(book.uri))), "", "")
+                        ReadingDocument(text, doc.title, doc.authors, "fb2")
+                    } else ReadingDocument(cleanBookText(readTxt(context, Uri.parse(book.uri))), sourceFormat = book.format)
                 }
-                content = loaded.first
+                content = loaded.text
                 val loadedIndex = books.indexOfFirst { it.uri == book.uri }
-                if (loadedIndex >= 0 && books[loadedIndex].length != loaded.first.length) {
-                    books[loadedIndex] = books[loadedIndex].copy(length = loaded.first.length)
+                if (loadedIndex >= 0 && books[loadedIndex].length != loaded.text.length) {
+                    books[loadedIndex] = books[loadedIndex].copy(length = loaded.text.length)
                     saveBooks(context, books)
                 }
                 loadedBookUri = book.uri
@@ -454,7 +455,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     if (book.title == sourceName || book.title.startsWith("openreader_") || book.author.isBlank()) {
                         val index = books.indexOfFirst { it.uri == book.uri }
                         if (index >= 0) {
-                            books[index] = book.copy(title = if ((book.title == sourceName || book.title.startsWith("openreader_")) && loaded.second.isNotBlank()) loaded.second else book.title, author = loaded.third.ifBlank { book.author })
+                            books[index] = book.copy(title = if ((book.title == sourceName || book.title.startsWith("openreader_")) && loaded.title.isNotBlank()) loaded.title else book.title, author = loaded.author.ifBlank { book.author })
                             saveBooks(context, books)
                         }
                     }
