@@ -5,6 +5,7 @@ import android.net.Uri
 import org.xmlpull.v1.XmlPullParser
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -329,7 +330,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var showReaderSettings by remember { mutableStateOf(false) }
     var readerTheme by remember { mutableStateOf(prefs.getString("reader_theme", "paper") ?: "paper") }
     var readerSpacing by remember { mutableFloatStateOf(prefs.getFloat("reader_spacing", 1.5f)) }
-    var readerMargin by remember { mutableFloatStateOf(prefs.getFloat("reader_margin", 18f)) }
+    var readerMargin by remember { mutableFloatStateOf(prefs.getFloat("reader_margin", 24f)) }
     val readerBackground = when (readerTheme) {
         "dark" -> androidx.compose.ui.graphics.Color(0xFF181818)
         "sepia" -> androidx.compose.ui.graphics.Color(0xFFF1E3C8)
@@ -343,7 +344,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.15-beta"
+    val appVersion = "0.4.16-beta"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -394,7 +395,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.12-beta" to "Добавлена пометка beta. Начата подготовка общего движка чтения для всех форматов книг.",
         "0.4.13-beta" to "Начата общая архитектура чтения: EPUB, FB2 и текстовые файлы теперь передают содержимое через единый ReadingDocument.",
         "0.4.14-beta" to "Исправлены разрывы слов отдельными страницами, добавлен предпросмотр симметричных боковых полей и ограничение их размеров.",
-        "0.4.15-beta" to "Добавлен запас высоты для нижних элементов букв и включены шрифтовые отступы, чтобы текст не обрезался при минимальном интервале."
+        "0.4.15-beta" to "Добавлен запас высоты для нижних элементов букв и включены шрифтовые отступы, чтобы текст не обрезался при минимальном интервале.",
+        "0.4.16-beta" to "Кнопка Назад на телефоне возвращает из книги в библиотеку. Боковые поля: 16–40 dp, стандарт — 24 dp."
     )
     // Include every release since the last version the reader actually opened.
     fun versionParts(version: String) = version.removePrefix("v").substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
@@ -419,6 +421,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         releaseNotes[appVersion] ?: "Обновление OpenReader $appVersion."
     } else missedReleaseNotes.joinToString("\n\n") { (version, description) -> "$version — $description" }
     var showWhatsNew by remember { mutableStateOf(prefs.getString("last_seen_version", null) != appVersion) }
+
+    BackHandler(enabled = currentBookUri != null && !showReaderSettings && !showWhatsNew) {
+        currentBookUri = null
+        content = ""
+        showControls = false
+    }
 
     fun openBook(book: LocalBook) {
         currentBookUri = book.uri
@@ -603,7 +611,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val effectiveMargin = readerMargin.coerceIn(22f, 36f)
+                        val effectiveMargin = readerMargin.coerceIn(16f, 40f)
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
@@ -1043,18 +1051,18 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             readerSpacing = 1.5f
                             prefs.edit().putFloat("font_size", fontSize).putFloat("reader_spacing", readerSpacing).apply()
                         }) { Text("Вернуть стандарт: 19 sp / 1,5") }
-                        Text("Боковые поля: ${readerMargin.coerceIn(22f, 36f).toInt()} dp")
+                        Text("Боковые поля: ${readerMargin.coerceIn(16f, 40f).toInt()} dp")
                         Text("Слева и справа одинаковые. Сверху и снизу — по 12 dp.", style = MaterialTheme.typography.bodySmall)
-                        Box(Modifier.fillMaxWidth().background(readerBackground).padding(horizontal = readerMargin.coerceIn(22f, 36f).dp, vertical = 12.dp)) {
+                        Box(Modifier.fillMaxWidth().background(readerBackground).padding(horizontal = readerMargin.coerceIn(16f, 40f).dp, vertical = 12.dp)) {
                             Text("Это пример страницы книги. Поля по бокам меняются сразу, а текст остаётся внутри книжной области.", fontSize = 14.sp, color = readerInk, lineHeight = 21.sp, textAlign = TextAlign.Justify)
                         }
-                        Slider(value = readerMargin.coerceIn(22f, 36f), onValueChange = {
+                        Slider(value = readerMargin.coerceIn(16f, 40f), onValueChange = {
                             readerMargin = it
                             prefs.edit().putFloat("reader_margin", it).apply()
-                        }, valueRange = 22f..36f)
+                        }, valueRange = 16f..40f)
                         TextButton(onClick = {
-                            readerMargin = 22f
-                            prefs.edit().putFloat("reader_margin", 22f).apply()
+                            readerMargin = 24f
+                            prefs.edit().putFloat("reader_margin", 24f).apply()
                         }) { Text("Стандартные поля") }
                     }
                 },
