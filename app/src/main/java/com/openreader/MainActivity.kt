@@ -425,7 +425,6 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     BackHandler(enabled = currentBookUri != null && !showReaderSettings && !showWhatsNew) {
         currentBookUri = null
         content = ""
-        showControls = false
     }
 
     fun openBook(book: LocalBook) {
