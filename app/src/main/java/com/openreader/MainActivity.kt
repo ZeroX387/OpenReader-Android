@@ -343,7 +343,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.14-beta"
+    val appVersion = "0.4.15-beta"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -393,7 +393,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.11" to "В оформлении книги появился живой предпросмотр размера шрифта и межстрочного интервала, а также кнопка возврата к стандартным значениям.",
         "0.4.12-beta" to "Добавлена пометка beta. Начата подготовка общего движка чтения для всех форматов книг.",
         "0.4.13-beta" to "Начата общая архитектура чтения: EPUB, FB2 и текстовые файлы теперь передают содержимое через единый ReadingDocument.",
-        "0.4.14-beta" to "Исправлены разрывы слов отдельными страницами, добавлен предпросмотр симметричных боковых полей и ограничение их размеров."
+        "0.4.14-beta" to "Исправлены разрывы слов отдельными страницами, добавлен предпросмотр симметричных боковых полей и ограничение их размеров.",
+        "0.4.15-beta" to "Добавлен запас высоты для нижних элементов букв и включены шрифтовые отступы, чтобы текст не обрезался при минимальном интервале."
     )
     // Include every release since the last version the reader actually opened.
     fun versionParts(version: String) = version.removePrefix("v").substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
@@ -606,7 +607,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
-                        val heightPx = with(density) { (maxHeight - 54.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 70.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
                         val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
                             produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx, charPosition) {
@@ -663,6 +664,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         lineHeight = (fontSize * readerSpacing).sp,
                                         color = readerInk,
                                         textAlign = TextAlign.Justify,
+                                        style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)),
                                         modifier = Modifier.fillMaxSize().padding(horizontal = effectiveMargin.dp, vertical = 12.dp)
                                     )
                                 } else {
