@@ -270,11 +270,9 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float,
         lineStarts.add(next)
         current = next
     }
-    // Keep the exact saved character offset as the first visible character.
-    // Snapping to a reflowed line boundary can skip text on rotation.
-    val exactAnchor = anchor.coerceIn(0, text.lastIndex)
-    return (lineStarts.map { layout.getLineStart(it) } + exactAnchor)
-        .distinct().sorted()
+    // Page boundaries must coincide with line starts. Injecting an arbitrary
+    // character offset created one-word pages (e.g. "ко" / "торый").
+    return lineStarts.map { layout.getLineStart(it) }.distinct().sorted()
 }
 
 // Style chapter titles without modifying the source string or saved character offsets.
@@ -345,7 +343,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.13-beta"
+    val appVersion = "0.4.14-beta"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -394,7 +392,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.10" to "Теперь окно «Что нового» показывает изменения всех пропущенных версий. Счётчик страниц стал незаметнее и получил цвет книжной страницы.",
         "0.4.11" to "В оформлении книги появился живой предпросмотр размера шрифта и межстрочного интервала, а также кнопка возврата к стандартным значениям.",
         "0.4.12-beta" to "Добавлена пометка beta. Начата подготовка общего движка чтения для всех форматов книг.",
-        "0.4.13-beta" to "Начата общая архитектура чтения: EPUB, FB2 и текстовые файлы теперь передают содержимое через единый ReadingDocument."
+        "0.4.13-beta" to "Начата общая архитектура чтения: EPUB, FB2 и текстовые файлы теперь передают содержимое через единый ReadingDocument.",
+        "0.4.14-beta" to "Исправлены разрывы слов отдельными страницами, добавлен предпросмотр симметричных боковых полей и ограничение их размеров."
     )
     // Include every release since the last version the reader actually opened.
     fun versionParts(version: String) = version.removePrefix("v").substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
@@ -603,11 +602,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val effectiveMargin = readerMargin.coerceAtLeast(22f)
+                        val effectiveMargin = readerMargin.coerceIn(22f, 36f)
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
-                        val heightPx = with(density) { (maxHeight - 74.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 54.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
                         val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
                             produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx, charPosition) {
@@ -1042,11 +1041,19 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             readerSpacing = 1.5f
                             prefs.edit().putFloat("font_size", fontSize).putFloat("reader_spacing", readerSpacing).apply()
                         }) { Text("Вернуть стандарт: 19 sp / 1,5") }
-                        Text("Поля страницы")
-                        Slider(value = readerMargin, onValueChange = {
+                        Text("Боковые поля: ${readerMargin.coerceIn(22f, 36f).toInt()} dp")
+                        Text("Слева и справа одинаковые. Сверху и снизу — по 12 dp.", style = MaterialTheme.typography.bodySmall)
+                        Box(Modifier.fillMaxWidth().background(readerBackground).padding(horizontal = readerMargin.coerceIn(22f, 36f).dp, vertical = 12.dp)) {
+                            Text("Это пример страницы книги. Поля по бокам меняются сразу, а текст остаётся внутри книжной области.", fontSize = 14.sp, color = readerInk, lineHeight = 21.sp, textAlign = TextAlign.Justify)
+                        }
+                        Slider(value = readerMargin.coerceIn(22f, 36f), onValueChange = {
                             readerMargin = it
                             prefs.edit().putFloat("reader_margin", it).apply()
-                        }, valueRange = 8f..40f)
+                        }, valueRange = 22f..36f)
+                        TextButton(onClick = {
+                            readerMargin = 22f
+                            prefs.edit().putFloat("reader_margin", 22f).apply()
+                        }) { Text("Стандартные поля") }
                     }
                 },
                 confirmButton = { TextButton(onClick = { showReaderSettings = false }) { Text("Готово") } }
