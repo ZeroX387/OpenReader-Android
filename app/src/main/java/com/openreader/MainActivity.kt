@@ -243,7 +243,7 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float,
         typeface = Typeface.DEFAULT
     }
     val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx)
-        .setIncludePad(false)
+        .setIncludePad(true)
         .setLineSpacing((fontPx * (spacing - 1f)).coerceAtLeast(0f), 1f)
         .setJustificationMode(android.text.Layout.JUSTIFICATION_MODE_INTER_WORD)
         .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY)
@@ -255,7 +255,7 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float,
     var firstLine = anchorLine
     while (firstLine > 0) {
         var previous = firstLine - 1
-        while (previous > 0 && layout.getLineBottom(firstLine - 1) - layout.getLineTop(previous - 1) <= heightPx) {
+        while (previous > 0 && layout.getLineBottom(firstLine - 1) - layout.getLineTop(previous) <= heightPx) {
             previous--
         }
         firstLine = previous
