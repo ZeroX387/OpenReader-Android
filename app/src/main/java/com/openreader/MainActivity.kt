@@ -39,6 +39,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
@@ -446,7 +447,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         val doc = readEpub(context, Uri.parse(book.uri))
                         ReadingDocument(doc.text, doc.title, doc.author, "epub")
                     } else if (book.format == "pdf") {
-                        ReadingDocument(readPdfText(context, Uri.parse(book.uri)), sourceFormat = "pdf")
+                        ReadingDocument(withTimeout(30_000L) { readPdfText(context, Uri.parse(book.uri)) }, sourceFormat = "pdf")
                     } else if (book.format == "docx") {
                         ReadingDocument(readDocxText(context, Uri.parse(book.uri)), sourceFormat = "docx")
                     } else if (book.format == "mobi" || book.format == "azw3") {
@@ -476,7 +477,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     }
                 }
             } catch (e: Exception) {
-                error = e.message ?: "Не удалось открыть книгу."
+                currentBookUri = null
+                content = ""
+                error = if (e is kotlinx.coroutines.TimeoutCancellationException) "PDF загружается слишком долго. Возможно, файл большой или повреждён." else e.message ?: "Не удалось открыть книгу."
             }
         }
     }
