@@ -492,8 +492,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 val isEpub = mime.contains("epub", true) || displayName.endsWith(".epub", ignoreCase = true)
                 val isPdf = mime.contains("pdf", true) || displayName.endsWith(".pdf", ignoreCase = true)
                 val isDocx = mime.contains("wordprocessingml", true) || displayName.endsWith(".docx", ignoreCase = true)
+                val isLegacyDoc = displayName.endsWith(".doc", ignoreCase = true)
                 val isMobi = displayName.endsWith(".mobi", true) || displayName.endsWith(".prc", true)
                 val isAzw3 = displayName.endsWith(".azw3", true) || displayName.endsWith(".azw", true)
+                require(!isLegacyDoc) {
+                    "Формат DOC (старый Word) пока не поддерживается. Откройте файл в Word или LibreOffice и сохраните его как DOCX."
+                }
                 require(isFb2 || isEpub || isPdf || isDocx || isMobi || isAzw3 || mime.startsWith("text/") || mime == "application/octet-stream" || mime.isBlank()) {
                     "Этот формат пока не поддерживается. Сейчас доступны TXT, FB2, EPUB, PDF, DOCX, MOBI и AZW3."
                 }
@@ -699,8 +703,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                         Text("📖", style = MaterialTheme.typography.displayLarge)
-                                        Text("OpenReader", style = MaterialTheme.typography.headlineMedium)
-                                        Text("Подготавливаем книгу…", style = MaterialTheme.typography.bodyMedium)
+                                        Text("OpenReader", style = MaterialTheme.typography.headlineMedium, color = readerInk)
+                                        Text("Подготавливаем книгу…", style = MaterialTheme.typography.bodyMedium, color = readerInk)
                                         CircularProgressIndicator()
                                     }
                                 }
@@ -708,7 +712,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             Text(
                                 if (loadedBookUri != book.uri || content.isEmpty() || readyStarts == null) "Загрузка книги…" else "${page + 1} / ${readyStarts.size}",
                                 modifier = Modifier.fillMaxWidth().height(30.dp).background(readerBackground),
-                                color = readerInk.copy(alpha = 0.55f),
+                                color = readerInk.copy(alpha = if (readerTheme == "sepia") 0.78f else 0.72f),
                                 textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.labelSmall
                             )
@@ -748,7 +752,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             style = MaterialTheme.typography.headlineMedium
                         )
                         if (selectedTab == 0) {
-                            Button(onClick = { picker.launch(arrayOf("text/plain", "text/*", "application/octet-stream", "application/x-fictionbook+xml", "application/xml", "text/xml", "application/epub+zip", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/x-mobipocket-ebook", "application/vnd.amazon.ebook")) }) {
+                            Button(onClick = { picker.launch(arrayOf("*/*")) }) {
                                 Text("+ Добавить TXT / FB2 / EPUB / PDF / DOCX / MOBI / AZW3")
                             }
                             Text("TXT, FB2, EPUB, PDF, DOCX, MOBI и AZW3: текстовое постраничное чтение.", style = MaterialTheme.typography.bodySmall)
