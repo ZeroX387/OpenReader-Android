@@ -444,6 +444,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     if (book.format == "epub") {
                         val doc = readEpub(context, Uri.parse(book.uri))
                         ReadingDocument(doc.text, doc.title, doc.author, "epub")
+                    } else if (book.format == "pdf") {
+                        ReadingDocument(readPdfText(context, Uri.parse(book.uri)), sourceFormat = "pdf")
+                    } else if (book.format == "docx") {
+                        ReadingDocument(readDocxText(context, Uri.parse(book.uri)), sourceFormat = "docx")
                     } else if (book.format == "fb2") {
                         val doc = readFb2(context, Uri.parse(book.uri))
                         val text = (if (doc.annotation.isNotBlank()) "Аннотация\n\n${cleanBookText(doc.annotation)}\n\n" else "") + doc.body
@@ -480,15 +484,22 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
                 val mime = context.contentResolver.getType(uri) ?: ""
+                val displayName = nameHintDisplayName(context, uri)
                 val isFb2 = mime.contains("fb2", true) || nameHintFb2(context, uri)
-                val isEpub = mime.contains("epub", true) || nameHintDisplayName(context, uri).endsWith(".epub", ignoreCase = true)
+                val isEpub = mime.contains("epub", true) || displayName.endsWith(".epub", ignoreCase = true)
+                val isPdf = mime.contains("pdf", true) || displayName.endsWith(".pdf", ignoreCase = true)
+                val isDocx = mime.contains("wordprocessingml", true) || displayName.endsWith(".docx", ignoreCase = true)
+                require(isFb2 || isEpub || isPdf || isDocx || mime.startsWith("text/") || mime == "application/octet-stream" || mime.isBlank()) {
+                    "Этот формат пока не поддерживается. Сейчас доступны TXT, FB2, EPUB, PDF и DOCX."
+                }
                 val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
                     ?.use { cursor ->
                         if (cursor.moveToFirst()) cursor.getString(0) else null
                     } ?: "Книга TXT"
                 val existing = books.firstOrNull { it.uri == uri.toString() }
                 val proposed = existing?.title ?: name.substringBeforeLast(".").ifBlank { name }
-                val book = LocalBook(uri.toString(), proposed, if (isEpub) "epub" else if (isFb2) "fb2" else "txt", existing?.author.orEmpty(), existing?.coverUri.orEmpty(), existing?.favorite ?: false, existing?.finished ?: false, existing?.genre.orEmpty(), existing?.collection.orEmpty(), existing?.addedAt ?: System.currentTimeMillis(), existing?.length ?: 0)
+                val format = when { isEpub -> "epub"; isFb2 -> "fb2"; isPdf -> "pdf"; isDocx -> "docx"; else -> "txt" }
+                val book = LocalBook(uri.toString(), proposed, format, existing?.author.orEmpty(), existing?.coverUri.orEmpty(), existing?.favorite ?: false, existing?.finished ?: false, existing?.genre.orEmpty(), existing?.collection.orEmpty(), existing?.addedAt ?: System.currentTimeMillis(), existing?.length ?: 0)
                 if (existing != null) {
                     books[books.indexOf(existing)] = book
                     saveBooks(context, books)
@@ -511,17 +522,21 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     val format = when {
                         filename.endsWith(".epub", true) || context.contentResolver.getType(externalBook)?.contains("epub", true) == true -> "epub"
                         filename.endsWith(".fb2", true) || context.contentResolver.getType(externalBook)?.contains("fb2", true) == true -> "fb2"
+                        filename.endsWith(".pdf", true) || context.contentResolver.getType(externalBook)?.contains("pdf", true) == true -> "pdf"
+                        filename.endsWith(".docx", true) || context.contentResolver.getType(externalBook)?.contains("wordprocessingml", true) == true -> "docx"
                         else -> {
                             val signature = context.contentResolver.openInputStream(externalBook)?.use { input ->
                                 ByteArray(4).also { input.read(it) }
                             }
                             if (signature != null && signature.size == 4 &&
                                 signature[0] == 80.toByte() && signature[1] == 75.toByte() &&
-                                signature[2] == 3.toByte() && signature[3] == 4.toByte()) "epub" else "txt"
+                                signature[2] == 3.toByte() && signature[3] == 4.toByte()) {
+                                if (filename.endsWith(".docx", true)) "docx" else "epub"
+                            } else if (signature != null && signature.size >= 4 && signature[0] == 37.toByte() && signature[1] == 80.toByte() && signature[2] == 68.toByte() && signature[3] == 70.toByte()) "pdf" else "txt"
                         }
                     }
                     val folder = java.io.File(context.filesDir, "imported_books").apply { mkdirs() }
-                    val suffix = when (format) { "epub" -> ".epub"; "fb2" -> ".fb2"; else -> ".txt" }
+                    val suffix = when (format) { "epub" -> ".epub"; "fb2" -> ".fb2"; "pdf" -> ".pdf"; "docx" -> ".docx"; else -> ".txt" }
                     val file = java.io.File.createTempFile("openreader_", suffix, folder)
                     try {
                         context.contentResolver.openInputStream(externalBook)?.use { source ->
@@ -726,12 +741,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             style = MaterialTheme.typography.headlineMedium
                         )
                         if (selectedTab == 0) {
-                            Button(onClick = { picker.launch(arrayOf("text/plain", "text/*", "application/octet-stream", "application/x-fictionbook+xml", "application/xml", "text/xml", "application/epub+zip")) }) {
-                                Text("+ Добавить TXT / FB2 / EPUB")
+                            Button(onClick = { picker.launch(arrayOf("text/plain", "text/*", "application/octet-stream", "application/x-fictionbook+xml", "application/xml", "text/xml", "application/epub+zip", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")) }) {
+                                Text("+ Добавить TXT / FB2 / EPUB / PDF / DOCX")
                             }
-                            Text("TXT, FB2 и EPUB: постраничное чтение.", style = MaterialTheme.typography.bodySmall)
+                            Text("TXT, FB2, EPUB, PDF и DOCX: текстовое постраничное чтение.", style = MaterialTheme.typography.bodySmall)
                             if (books.isEmpty()) {
-                                Text("Книг пока нет. Нажмите кнопку выше, чтобы выбрать TXT или FB2.")
+                                Text("Книг пока нет. Нажмите кнопку выше, чтобы добавить книгу.")
                             }
                         }
                         if (selectedTab == 2) {
