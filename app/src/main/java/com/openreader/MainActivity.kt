@@ -38,6 +38,7 @@ import androidx.compose.ui.zIndex
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
@@ -589,11 +590,52 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
     var showControls by remember(currentBookUri) { mutableStateOf(false) }
     MaterialTheme(colorScheme = if (isDark) darkColorScheme() else lightColorScheme()) {
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
+        val drawerScope = rememberCoroutineScope()
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = currentBook == null,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Text("OpenReader", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(24.dp))
+                    HorizontalDivider()
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        listOf(
+                            Triple("📚", "Библиотека", 0),
+                            Triple("★", "Избранное", 1),
+                            Triple("▤", "Папки и коллекции", 2),
+                            Triple("✓", "Прочитанные", 3)
+                        ).forEach { (symbol, label, index) ->
+                            NavigationDrawerItem(
+                                label = { Text(label) },
+                                icon = { Text(symbol) },
+                                selected = selectedTab == index,
+                                onClick = { selectedTab = index; drawerScope.launch { drawerState.close() } },
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                            )
+                        }
+                        HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                        NavigationDrawerItem(
+                            label = { Text("Настройки") },
+                            icon = { Text("⚙") },
+                            selected = false,
+                            onClick = { drawerScope.launch { drawerState.close() }; showSettings = true },
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                    }
+                }
+            }
+        ) {
         Scaffold(
             topBar = {
                 if (currentBook == null) {
                     TopAppBar(
                         title = { Text("OpenReader beta") },
+                        navigationIcon = {
+                            IconButton(onClick = { drawerScope.launch { drawerState.open() } }) {
+                                Icon(androidx.compose.material.icons.Icons.Default.Menu, contentDescription = "Открыть меню")
+                            }
+                        },
                         actions = {
                             IconButton(onClick = { showSettings = true }) {
                                 Text("⚙️", style = MaterialTheme.typography.titleLarge)
@@ -602,21 +644,6 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     )
                 }
             },
-            bottomBar = {
-                if (currentBook == null) {
-                    NavigationBar {
-                        val tabs = listOf("Библиотека", "Избранное", "Папки", "Прочитано")
-                        tabs.forEachIndexed { index, label ->
-                            NavigationBarItem(
-                                selected = selectedTab == index,
-                                onClick = { selectedTab = index },
-                                icon = { Text(listOf("📚", "★", "▤", "✓")[index]) },
-                                label = { Text(label) }
-                            )
-                        }
-                    }
-                }
-            }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
                 if (currentBook != null) {
@@ -797,7 +824,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                                 }
                                             }
                                             Box(
-                                                Modifier.width(74.dp).height(104.dp)
+                                                Modifier.width(96.dp).height(136.dp)
                                                     .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp)),
                                                 contentAlignment = Alignment.Center
                                             ) {
@@ -817,6 +844,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                                 if (book.author.isNotBlank()) Text(book.author, style = MaterialTheme.typography.bodySmall)
                                                 Text(book.format.uppercase() + (if (book.collection.isNotBlank()) " · " + book.collection else ""), style = MaterialTheme.typography.labelSmall)
                                                 val percent = if (book.finished) 100 else if (book.length > 0) (prefs.getInt("page_char_" + book.uri.hashCode(), 0).toLong() * 100 / book.length).toInt().coerceIn(0, 99) else 0
+                                                LinearProgressIndicator(progress = { percent / 100f }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
                                                 Text("Прочитано: $percent%", style = MaterialTheme.typography.bodySmall)
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     IconButton(onClick = {
@@ -857,6 +885,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     }
                 }
             }
+        }
         }
         if (collectionDialog) {
             AlertDialog(
