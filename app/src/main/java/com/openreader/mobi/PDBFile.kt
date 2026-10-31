@@ -17,17 +17,31 @@ class PDBFile(private val pfd: ParcelFileDescriptor) {
     val recordCount: Int
 
     init {
-        var buffer = ByteBuffer.allocate(79)
-        fc.read(buffer)
-        name = buffer.readString(0, 32)
-        type = buffer.readString(60, 4)
-        creator = buffer.readString(64, 4)
-        recordCount = buffer.readUInt16(76)
+        val fileSize = fc.size()
+        require(fileSize >= 78L) { "Invalid PDB file: header is truncated" }
 
-        buffer = ByteBuffer.allocate(recordCount * 8)
-        fc.read(buffer, 78)
-        offsets = IntArray(recordCount) {
-            buffer.readUInt32(it * 8)
+        val header = ByteBuffer.allocate(78)
+        readFully(header, 0L)
+        name = header.readString(0, 32)
+        type = header.readString(60, 4)
+        creator = header.readString(64, 4)
+        recordCount = header.readUInt16(76)
+
+        require(recordCount > 0) { "Invalid PDB file: no records" }
+        val tableEnd = 78L + recordCount.toLong() * 8L
+        require(tableEnd <= fileSize) { "Invalid PDB file: record table is truncated" }
+
+        val table = ByteBuffer.allocate(recordCount * 8)
+        readFully(table, 78L)
+        offsets = IntArray(recordCount) { table.readUInt32(it * 8) }
+
+        var previous = tableEnd
+        for (offset in offsets) {
+            val current = offset.toLong()
+            require(current >= tableEnd && current >= previous && current <= fileSize) {
+                "Invalid PDB file: record offsets are out of bounds"
+            }
+            previous = current
         }
     }
 
@@ -35,15 +49,28 @@ class PDBFile(private val pfd: ParcelFileDescriptor) {
         if (index < 0 || index >= recordCount) {
             throw IndexOutOfBoundsException("Record index out of bounds")
         }
-        val len = offsets.getOrElse(index + 1) { fc.size().toInt() } - offsets[index]
-        val buffer = ByteBuffer.allocate(len)
-        fc.read(buffer, offsets[index].toLong())
+        val start = offsets[index].toLong()
+        val end = offsets.getOrElse(index + 1) { fc.size().toInt() }.toLong()
+        require(end >= start && end <= fc.size()) { "Invalid PDB file: record length is out of bounds" }
+        val length = end - start
+        require(length <= Int.MAX_VALUE) { "Invalid PDB file: record is too large" }
+        val buffer = ByteBuffer.allocate(length.toInt())
+        readFully(buffer, start)
         return buffer
+    }
+
+    private fun readFully(buffer: ByteBuffer, position: Long) {
+        var current = position
+        while (buffer.hasRemaining()) {
+            val count = fc.read(buffer, current)
+            if (count <= 0) throw IllegalArgumentException("Invalid PDB file: unexpected end of file")
+            current += count
+        }
+        buffer.flip()
     }
 
     fun close() {
         fc.close()
         pfd.close()
     }
-
 }
