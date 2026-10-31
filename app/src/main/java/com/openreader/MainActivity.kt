@@ -633,7 +633,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         title = { Text("OpenReader beta") },
                         navigationIcon = {
                             IconButton(onClick = { drawerScope.launch { drawerState.open() } }) {
-                                Icon(androidx.compose.material.icons.Icons.Default.Menu, contentDescription = "Открыть меню")
+                                Text("☰", style = MaterialTheme.typography.headlineMedium)
                             }
                         },
                         actions = {
