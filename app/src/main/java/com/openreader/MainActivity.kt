@@ -734,8 +734,13 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                         Text("📖", style = MaterialTheme.typography.displayLarge)
                                         Text("OpenReader", style = MaterialTheme.typography.headlineMedium, color = readerInk)
-                                        Text("Подготавливаем книгу…", style = MaterialTheme.typography.bodyMedium, color = readerInk)
-                                        CircularProgressIndicator()
+                                        if (loadedBookUri == book.uri && content.isEmpty()) {
+                                            Text("Не удалось прочитать документ", color = readerInk)
+                                            TextButton(onClick = { currentBookUri = null }) { Text("Вернуться в библиотеку") }
+                                        } else {
+                                            Text("Подготавливаем книгу…", style = MaterialTheme.typography.bodyMedium, color = readerInk)
+                                            CircularProgressIndicator()
+                                        }
                                     }
                                 }
                             }
