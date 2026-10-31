@@ -51,7 +51,7 @@ abstract class MobiBook(
         1 -> PlainDecompressor()
         2 -> Lz77Decompressor(max(4096, palmdoc.recordSize))
         17480 -> HuffcdicDecompressor(this, mobi)
-        else -> error("unknown compression $charset")
+        else -> error("unknown compression $compression")
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -103,7 +103,7 @@ abstract class MobiBook(
 
             private var index = -1
             private var bis: ByteArrayInputStream = emptyByteArrayInputStream
-            private var available = textRecordOffsets.last()
+            private var available = textRecordOffsets.lastOrNull() ?: 0
             private var pos = 0
 
             override fun read(): Int {
@@ -162,7 +162,7 @@ abstract class MobiBook(
     }
 
     private fun removeTrailingEntries(byteArray: ByteArray): ByteArray {
-        if (trailingFlags == 0) return byteArray
+        if (trailingFlags == 0 || byteArray.isEmpty()) return byteArray
         val multibyte = trailingFlags and 1 != 0
         val numTrailingEntries = (trailingFlags shr 1).countOneBits()
         val lastIndex = byteArray.lastIndex
@@ -178,9 +178,19 @@ abstract class MobiBook(
             }
             extraSize += value
         }
+        if (extraSize > byteArray.size) {
+            throw IllegalArgumentException("Invalid MOBI trailing-entry length")
+        }
         if (multibyte) {
-            val byte = byteArray[byteArray.lastIndex - extraSize]
+            val index = byteArray.lastIndex - extraSize
+            if (index < 0) {
+                throw IllegalArgumentException("Invalid MOBI multibyte trailing entry")
+            }
+            val byte = byteArray[index]
             extraSize += (byte and 0b11) + 1
+        }
+        if (extraSize > byteArray.size) {
+            throw IllegalArgumentException("Invalid MOBI trailing-entry length")
         }
         return byteArray.copyOfRange(0, byteArray.size - extraSize)
     }
