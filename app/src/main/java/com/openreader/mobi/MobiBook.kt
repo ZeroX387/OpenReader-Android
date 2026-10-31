@@ -90,7 +90,7 @@ abstract class MobiBook(
     }
 
     fun getTextRecord(index: Int): ByteArray {
-        if (index < 0 && index >= palmdoc.numTextRecords) {
+        if (index < 0 || index >= palmdoc.numTextRecords) {
             throw IndexOutOfBoundsException("Text record index out of bounds")
         }
         var content = getRecord(index + 1).array()
