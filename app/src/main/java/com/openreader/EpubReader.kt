@@ -75,8 +75,8 @@ internal fun readEpub(context: Context, uri: Uri): EpubDocument {
         val html = data.toString(Charsets.UTF_8)
         val body = Regex("<body\\b[^>]*>([\\s\\S]*?)</body>", RegexOption.IGNORE_CASE)
             .find(html)?.groupValues?.get(1) ?: html
-        val readableBody = body.replace(Regex("<ul\\b[\\s\\S]*?</ul>", RegexOption.IGNORE_CASE), " ")
-        val lineAwareBody = readableBody.replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
+        // Keep list content; removing the entire <ul> silently discarded book text.
+        val lineAwareBody = body.replace(Regex("<br\\s*/?>", RegexOption.IGNORE_CASE), "\n")
         Html.fromHtml(lineAwareBody, Html.FROM_HTML_MODE_COMPACT).toString()
             .replace(Regex("\\n{3,}"), "\n\n").trim().takeIf { it.isNotBlank() }
     }
