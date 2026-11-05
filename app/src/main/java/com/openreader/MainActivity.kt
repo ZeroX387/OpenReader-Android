@@ -5,6 +5,8 @@ import android.net.Uri
 import org.xmlpull.v1.XmlPullParser
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -298,6 +300,17 @@ private fun styledPage(pageText: String) = buildAnnotatedString {
 private fun OpenReaderApp(externalBook: Uri? = null) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
+    DisposableEffect(currentBookUri) {
+        val activity = context as? ComponentActivity
+        val controller = activity?.let { WindowInsetsControllerCompat(it.window, it.window.decorView) }
+        if (currentBookUri != null) {
+            controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
+    }
     var languageChoice by remember { mutableStateOf(prefs.getString("language", "system") ?: "system") }
     val systemLanguage = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language
     val englishUi = (if (languageChoice == "system") systemLanguage else languageChoice) != "ru"
@@ -673,7 +686,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         val heightPx = with(density) { (maxHeight - 70.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
                         val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
-                            produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx, charPosition) {
+                            produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx) {
                             value = withContext(Dispatchers.Default) {
                                 pageStarts(content, widthPx, heightPx, fontPx, charPosition, readerSpacing)
                             }
