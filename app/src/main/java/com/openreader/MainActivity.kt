@@ -300,17 +300,6 @@ private fun styledPage(pageText: String) = buildAnnotatedString {
 private fun OpenReaderApp(externalBook: Uri? = null) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
-    DisposableEffect(currentBookUri) {
-        val activity = context as? ComponentActivity
-        val controller = activity?.let { WindowInsetsControllerCompat(it.window, it.window.decorView) }
-        if (currentBookUri != null) {
-            controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            controller?.hide(WindowInsetsCompat.Type.systemBars())
-        } else {
-            controller?.show(WindowInsetsCompat.Type.systemBars())
-        }
-        onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
-    }
     var languageChoice by remember { mutableStateOf(prefs.getString("language", "system") ?: "system") }
     val systemLanguage = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language
     val englishUi = (if (languageChoice == "system") systemLanguage else languageChoice) != "ru"
@@ -331,6 +320,17 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var collectionName by remember { mutableStateOf("") }
     var currentBookUri by rememberSaveable { mutableStateOf<String?>(null) }
     val currentBook = books.firstOrNull { it.uri == currentBookUri }
+    DisposableEffect(currentBookUri) {
+        val activity = context as? ComponentActivity
+        val controller = activity?.let { WindowInsetsControllerCompat(it.window, it.window.decorView) }
+        if (currentBookUri != null) {
+            controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
+    }
     var content by remember { mutableStateOf("") }
     var loadedBookUri by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
