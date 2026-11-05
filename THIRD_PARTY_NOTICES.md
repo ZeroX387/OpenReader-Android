@@ -25,3 +25,14 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+## Apache POI (legacy Microsoft Word DOC)
+
+OpenReader uses Apache POI 5.5.1 `poi-scratchpad` / HWPF to extract text from legacy Word 97–2003 `.doc` files. Apache POI is developed by the Apache Software Foundation and is licensed under the Apache License, Version 2.0.
+
+- Project: https://poi.apache.org/
+- License: https://www.apache.org/licenses/LICENSE-2.0
+- Component documentation: https://poi.apache.org/components/document/index.html
+
+HWPF is intended here for text extraction only; document layout, embedded objects, and some older or protected Word variants may not be preserved or supported.
