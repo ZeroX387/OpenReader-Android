@@ -39,10 +39,10 @@ internal fun readLegacyDocText(context: Context, uri: Uri): String {
     }
 
     val text = rawText
-        .replace("\\r\\n", "\\n")
-        .replace('\\r', '\\n')
-        .replace(Regex("[ \\t]+\\n"), "\\n")
-        .replace(Regex("\\n{3,}"), "\\n\\n")
+        .replace("\r\n", "\n")
+        .replace('\r', '\n')
+        .replace(Regex("[ \\t]+\\n"), "\n")
+        .replace(Regex("\\n{3,}"), "\n\n")
         .trim()
 
     require(text.isNotBlank()) { "В документе DOC не найден текст." }
