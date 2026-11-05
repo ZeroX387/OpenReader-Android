@@ -450,6 +450,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         ReadingDocument(withTimeout(30_000L) { readPdfText(context, Uri.parse(book.uri)) }, sourceFormat = "pdf")
                     } else if (book.format == "docx") {
                         ReadingDocument(readDocxText(context, Uri.parse(book.uri)), sourceFormat = "docx")
+                    } else if (book.format == "doc") {
+                        ReadingDocument(readLegacyDocText(context, Uri.parse(book.uri)), sourceFormat = "doc")
                     } else if (book.format == "mobi" || book.format == "azw3") {
                         val doc = readMobiText(context, Uri.parse(book.uri))
                         ReadingDocument(doc.text, doc.title, doc.author, book.format)
@@ -496,14 +498,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 val isEpub = mime.contains("epub", true) || displayName.endsWith(".epub", ignoreCase = true)
                 val isPdf = mime.contains("pdf", true) || displayName.endsWith(".pdf", ignoreCase = true)
                 val isDocx = mime.contains("wordprocessingml", true) || displayName.endsWith(".docx", ignoreCase = true)
-                val isLegacyDoc = displayName.endsWith(".doc", ignoreCase = true)
+                val isDoc = mime.contains("msword", true) || displayName.endsWith(".doc", ignoreCase = true)
                 val isMobi = displayName.endsWith(".mobi", true) || displayName.endsWith(".prc", true)
                 val isAzw3 = displayName.endsWith(".azw3", true) || displayName.endsWith(".azw", true)
-                require(!isLegacyDoc) {
-                    "Формат DOC (старый Word) пока не поддерживается. Откройте файл в Word или LibreOffice и сохраните его как DOCX."
-                }
-                require(isFb2 || isEpub || isPdf || isDocx || isMobi || isAzw3 || mime.startsWith("text/") || mime == "application/octet-stream" || mime.isBlank()) {
-                    "Этот формат пока не поддерживается. Сейчас доступны TXT, FB2, EPUB, PDF, DOCX, MOBI и AZW3."
+                require(isFb2 || isEpub || isPdf || isDocx || isDoc || isMobi || isAzw3 || mime.startsWith("text/") || mime == "application/octet-stream" || mime.isBlank()) {
+                    "Этот формат пока не поддерживается. Сейчас доступны TXT, FB2, EPUB, PDF, DOC, DOCX, MOBI и AZW3."
                 }
                 val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
                     ?.use { cursor ->
@@ -511,7 +510,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     } ?: "Книга TXT"
                 val existing = books.firstOrNull { it.uri == uri.toString() }
                 val proposed = existing?.title ?: name.substringBeforeLast(".").ifBlank { name }
-                val format = when { isEpub -> "epub"; isFb2 -> "fb2"; isPdf -> "pdf"; isDocx -> "docx"; isMobi -> "mobi"; isAzw3 -> "azw3"; else -> "txt" }
+                val format = when { isEpub -> "epub"; isFb2 -> "fb2"; isPdf -> "pdf"; isDocx -> "docx"; isDoc -> "doc"; isMobi -> "mobi"; isAzw3 -> "azw3"; else -> "txt" }
                 val book = LocalBook(uri.toString(), proposed, format, existing?.author.orEmpty(), existing?.coverUri.orEmpty(), existing?.favorite ?: false, existing?.finished ?: false, existing?.genre.orEmpty(), existing?.collection.orEmpty(), existing?.addedAt ?: System.currentTimeMillis(), existing?.length ?: 0)
                 if (existing != null) {
                     books[books.indexOf(existing)] = book
@@ -537,6 +536,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         filename.endsWith(".fb2", true) || context.contentResolver.getType(externalBook)?.contains("fb2", true) == true -> "fb2"
                         filename.endsWith(".pdf", true) || context.contentResolver.getType(externalBook)?.contains("pdf", true) == true -> "pdf"
                         filename.endsWith(".docx", true) || context.contentResolver.getType(externalBook)?.contains("wordprocessingml", true) == true -> "docx"
+                        filename.endsWith(".doc", true) || context.contentResolver.getType(externalBook)?.contains("msword", true) == true -> "doc"
                         filename.endsWith(".mobi", true) || filename.endsWith(".prc", true) -> "mobi"
                         filename.endsWith(".azw3", true) || filename.endsWith(".azw", true) -> "azw3"
                         else -> {
@@ -551,7 +551,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         }
                     }
                     val folder = java.io.File(context.filesDir, "imported_books").apply { mkdirs() }
-                    val suffix = when (format) { "epub" -> ".epub"; "fb2" -> ".fb2"; "pdf" -> ".pdf"; "docx" -> ".docx"; "mobi" -> ".mobi"; "azw3" -> ".azw3"; else -> ".txt" }
+                    val suffix = when (format) { "epub" -> ".epub"; "fb2" -> ".fb2"; "pdf" -> ".pdf"; "docx" -> ".docx"; "doc" -> ".doc"; "mobi" -> ".mobi"; "azw3" -> ".azw3"; else -> ".txt" }
                     val file = java.io.File.createTempFile("openreader_", suffix, folder)
                     try {
                         context.contentResolver.openInputStream(externalBook)?.use { source ->
