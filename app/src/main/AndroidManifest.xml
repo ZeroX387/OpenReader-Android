@@ -9,6 +9,9 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
+            android:name=".pdf.SimplePdfActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="true">
