@@ -443,8 +443,17 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     }
 
     fun openBook(book: LocalBook) {
-        currentBookUri = book.uri
         error = null
+        if (book.format == "pdf") {
+            context.startActivity(
+                android.content.Intent(context, com.openreader.pdf.SimplePdfActivity::class.java).apply {
+                    data = Uri.parse(book.uri)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            )
+            return
+        }
+        currentBookUri = book.uri
     }
 
     LaunchedEffect(currentBookUri) {
