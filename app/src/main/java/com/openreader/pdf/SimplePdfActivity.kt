@@ -232,7 +232,7 @@ class SimplePdfActivity : Activity() {
         if (cached != null && !cached.isRecycled) {
             displayBitmap(cached)
             progress.visibility = View.GONE
-            prefetchNeighbors(safeIndex)
+            rendererExecutor.execute { prefetchNeighbors(safeIndex) }
             return
         }
 
