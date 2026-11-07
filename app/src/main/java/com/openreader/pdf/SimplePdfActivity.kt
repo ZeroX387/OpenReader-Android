@@ -54,6 +54,8 @@ class SimplePdfActivity : Activity() {
     private lateinit var pageView: ImageView
     private lateinit var progress: ProgressBar
     private lateinit var bottomBar: LinearLayout
+    private lateinit var topBar: LinearLayout
+    private lateinit var titleLabel: TextView
     private lateinit var pageLabel: TextView
     private lateinit var pageSeek: SeekBar
     private lateinit var scaleDetector: ScaleGestureDetector
@@ -88,6 +90,26 @@ class SimplePdfActivity : Activity() {
             setPadding(dp(12), dp(8), dp(12), dp(8))
             setBackgroundColor(0xDD171717.toInt())
         }
+        topBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(4), dp(8), dp(4))
+            setBackgroundColor(0xEE075B70.toInt())
+        }
+        titleLabel = TextView(this).apply {
+            text = intent.getStringExtra("book_title") ?: "PDF"
+            setTextColor(Color.WHITE)
+            textSize = 17f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        topBar.addView(makeButton("‹") { finish() }, LinearLayout.LayoutParams(dp(48), dp(52)))
+        topBar.addView(titleLabel, LinearLayout.LayoutParams(0, dp(52), 1f))
+        topBar.addView(makeButton("⋮") {
+            Toast.makeText(this, "Дополнительные функции PDF добавим следующим этапом", Toast.LENGTH_SHORT).show()
+        }, LinearLayout.LayoutParams(dp(48), dp(52)))
+
         pageLabel = TextView(this).apply {
             setTextColor(Color.WHITE)
             textSize = 13f
@@ -130,6 +152,9 @@ class SimplePdfActivity : Activity() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             ))
             addView(progress, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
+            addView(topBar, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP
+            ))
             addView(bottomBar, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -315,6 +340,12 @@ class SimplePdfActivity : Activity() {
             setScale(scale, scale)
             postTranslate(dx, dy)
         }
+    }
+
+    private fun toggleReaderBars() {
+        val visible = topBar.visibility != View.VISIBLE
+        topBar.visibility = if (visible) View.VISIBLE else View.GONE
+        bottomBar.visibility = if (visible) View.VISIBLE else View.GONE
     }
 
     private fun applyImageMatrix(focusX: Float, focusY: Float, factor: Float) {
