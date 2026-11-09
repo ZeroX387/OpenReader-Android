@@ -397,7 +397,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     fun tr(ru: String, en: String) = if (englishUi) en else ru
     val books = remember { mutableStateListOf<LocalBook>() }
     var booksLoaded by remember { mutableStateOf(false) }
-    val startupMessage = remember { startupPhrases.random() }
+    val startupMessage = rememberSaveable {
+        val previousStartupMessage = prefs.getString("last_startup_loading_phrase", null)
+        startupPhrases.filter { it != previousStartupMessage }.random().also { chosen ->
+            prefs.edit().putString("last_startup_loading_phrase", chosen).apply()
+        }
+    }
     var openingMessage by remember { mutableStateOf(openingBookPhrases.random()) }
     var closingMessage by remember { mutableStateOf(closingBookPhrases.random()) }
     LaunchedEffect(Unit) {
