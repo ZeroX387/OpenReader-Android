@@ -316,50 +316,58 @@ private fun pageStarts(layout: TextLayoutResult, heightPx: Int, anchor: Int): Li
     return lineStarts.map { layout.getLineStart(it) }.distinct().sorted()
 }
 
+private val closingBookPhrases = listOf(
+    "Книга возвращается на своё место…",
+    "Возвращаем книгу на полку…",
+    "Бережно убираем книгу…",
+    "Полка снова ждёт свою книгу…"
+)
+private val openingBookPhrases = listOf(
+    "Ищем нужную страницу…",
+    "Пора вернуться к чтению…",
+    "Открываем книгу… История продолжается…",
+    "Находим место, на котором остановились…"
+)
+private val startupPhrases = listOf(
+    "Проверяем, все ли книги на месте…",
+    "Библиотека просыпается…",
+    "Открываем библиотеку…",
+    "Подготавливаем книги к чтению…"
+)
+
 @Composable
-private fun ReaderLoadingState(ink: androidx.compose.ui.graphics.Color) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text("Открываем книгу…", color = ink, style = MaterialTheme.typography.bodyLarge)
-            LinearProgressIndicator(Modifier.width(180.dp))
+private fun LibraryLoadingIcon() {
+    val white = androidx.compose.ui.graphics.Color.White
+    androidx.compose.foundation.Canvas(Modifier.size(44.dp)) {
+        val stroke = 2.dp.toPx()
+        val corner = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+        drawRoundRect(white, androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.12f), androidx.compose.ui.geometry.Size(size.width * 0.20f, size.height * 0.66f), corner, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        drawRoundRect(white, androidx.compose.ui.geometry.Offset(size.width * 0.39f, size.height * 0.22f), androidx.compose.ui.geometry.Size(size.width * 0.20f, size.height * 0.56f), corner, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        drawRoundRect(white, androidx.compose.ui.geometry.Offset(size.width * 0.66f, size.height * 0.08f), androidx.compose.ui.geometry.Size(size.width * 0.20f, size.height * 0.70f), corner, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        drawLine(white, androidx.compose.ui.geometry.Offset(size.width * 0.06f, size.height * 0.86f), androidx.compose.ui.geometry.Offset(size.width * 0.94f, size.height * 0.86f), strokeWidth = stroke)
+    }
+}
+
+@Composable
+private fun LibraryLoadingState(message: String) {
+    Box(
+        Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)
+            .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = {}),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            LibraryLoadingIcon()
+            Text(message, color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+            LinearProgressIndicator(modifier = Modifier.width(180.dp), color = androidx.compose.ui.graphics.Color.White, trackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.24f))
         }
     }
 }
 
 @Composable
-private fun ClosingBookState() {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(androidx.compose.ui.graphics.Color.Black)
-            .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                indication = null,
-                onClick = {}
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                "Закрываем книгу…",
-                color = androidx.compose.ui.graphics.Color.White,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            LinearProgressIndicator(
-                modifier = Modifier.width(180.dp),
-                color = androidx.compose.ui.graphics.Color.White,
-                trackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.24f)
-            )
-        }
-    }
-}
+private fun ReaderLoadingState(message: String) = LibraryLoadingState(message)
+
+@Composable
+private fun ClosingBookState(message: String) = LibraryLoadingState(message)
 
 // Style chapter titles without modifying the source string or saved character offsets.
 private val chapterTitlePattern = Regex("(?im)^\\s*(?:глава\\b[^\\n]{0,65}|chapter\\b[^\\n]{0,65})\\s*$")
@@ -389,6 +397,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     fun tr(ru: String, en: String) = if (englishUi) en else ru
     val books = remember { mutableStateListOf<LocalBook>() }
     var booksLoaded by remember { mutableStateOf(false) }
+    val startupMessage = remember { startupPhrases.random() }
+    var openingMessage by remember { mutableStateOf(openingBookPhrases.random()) }
+    var closingMessage by remember { mutableStateOf(closingBookPhrases.random()) }
     LaunchedEffect(Unit) {
         val storedBooks = withContext(Dispatchers.IO) { loadBooks(context) }
         books.addAll(storedBooks)
@@ -590,6 +601,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         savedLibraryScrollPosition = libraryScrollState.value
         libraryWasAtBottom = libraryScrollState.maxValue > 0 &&
             libraryScrollState.value >= libraryScrollState.maxValue - 2
+        closingMessage = closingBookPhrases.random()
         libraryTransitioning = true
         currentBookUri = null
         content = ""
@@ -609,6 +621,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
             )
             return
         }
+        openingMessage = openingBookPhrases.random()
         libraryTransitioning = true
         currentBookUri = book.uri
     }
@@ -825,7 +838,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         ) {
         Scaffold(
             topBar = {
-                if (currentBook == null) {
+                if (currentBook == null && booksLoaded) {
                     TopAppBar(
                         title = { Text("OpenReader beta") },
                         navigationIcon = {
@@ -952,7 +965,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
                                     )
                                 } else {
-                                    ReaderLoadingState(readerInk)
+                                    ReaderLoadingState(openingMessage)
                                 }
                             }
                             if (showControls) {
@@ -978,6 +991,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     savedLibraryScrollPosition = libraryScrollState.value
                                     libraryWasAtBottom = libraryScrollState.maxValue > 0 &&
                                         libraryScrollState.value >= libraryScrollState.maxValue - 2
+                                    closingMessage = closingBookPhrases.random()
                                     libraryTransitioning = true
                                     currentBookUri = null
                                     content = ""
@@ -1028,9 +1042,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                 Text("+ Добавить TXT / FB2 / EPUB / PDF / DOCX / MOBI / AZW3")
                             }
                             Text("TXT, FB2, EPUB, PDF, DOCX, MOBI и AZW3: текстовое постраничное чтение.", style = MaterialTheme.typography.bodySmall)
-                            if (!booksLoaded) {
-                                Text("Загружаем библиотеку…", style = MaterialTheme.typography.bodyMedium)
-                            } else if (books.isEmpty()) {
+                            if (booksLoaded && books.isEmpty()) {
                                 Text("Книг пока нет. Нажмите кнопку выше, чтобы добавить книгу.")
                             }
                         }
@@ -1143,7 +1155,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 }
             }
             if (currentBookUri == null && libraryTransitioning) {
-                ClosingBookState()
+                ClosingBookState(closingMessage)
+            }
+            if (currentBookUri == null && !booksLoaded) {
+                LibraryLoadingState(startupMessage)
             }
             }
         }
