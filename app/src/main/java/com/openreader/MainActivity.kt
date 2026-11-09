@@ -300,7 +300,7 @@ private fun pageStarts(layout: TextLayoutResult, heightPx: Int, anchor: Int): Li
 }
 
 @Composable
-private fun ReaderLoadingState() {
+private fun ReaderLoadingState(ink: androidx.compose.ui.graphics.Color) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
             Modifier.padding(24.dp),
@@ -308,8 +308,8 @@ private fun ReaderLoadingState() {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("📖", style = MaterialTheme.typography.displayLarge)
-            Text("OpenReader", style = MaterialTheme.typography.headlineMedium)
-            Text("Подготавливаем книгу…", style = MaterialTheme.typography.bodyMedium)
+            Text("OpenReader", color = ink, style = MaterialTheme.typography.headlineMedium)
+            Text("Подготавливаем книгу…", color = ink, style = MaterialTheme.typography.bodyMedium)
             CircularProgressIndicator()
         }
     }
@@ -368,10 +368,15 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         }
         onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
     }
-    // Never read the text cache while composing: books can be large, and disk I/O
-    // here blocks the UI thread. The loader below checks the cache on Dispatchers.IO.
-    var content by remember(currentBookUri) { mutableStateOf("") }
-    var loadedBookUri by remember(currentBookUri) { mutableStateOf<String?>(null) }
+    // Restore the cached text immediately so reopening an already-read book does not
+    // show an unnecessary loading delay. Read the cache only once per selected URI.
+    val initialCachedBookText = remember(currentBookUri) {
+        currentBookUri?.let { readCachedBookText(context, it) }
+    }
+    var content by remember(currentBookUri) { mutableStateOf(initialCachedBookText ?: "") }
+    var loadedBookUri by remember(currentBookUri) {
+        mutableStateOf(currentBookUri?.takeIf { initialCachedBookText != null })
+    }
     var error by remember { mutableStateOf<String?>(null) }
     var editingBook by remember { mutableStateOf<LocalBook?>(null) }
     var editedTitle by remember { mutableStateOf("") }
@@ -853,7 +858,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
                                     )
                                 } else {
-                                    ReaderLoadingState()
+                                    ReaderLoadingState(readerInk)
                                 }
                             }
                             if (showControls) {
