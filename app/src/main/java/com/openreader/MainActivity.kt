@@ -301,7 +301,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
     val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.coerceAtLeast(320)
-    val defaultReaderMargin = (screenWidthDp * 0.095f).coerceIn(24f, 64f)
+    val defaultReaderMargin = (screenWidthDp * 0.13f).coerceIn(40f, 80f)
     var languageChoice by remember { mutableStateOf(prefs.getString("language", "system") ?: "system") }
     val systemLanguage = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language
     val englishUi = (if (languageChoice == "system") systemLanguage else languageChoice) != "ru"
@@ -349,16 +349,16 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var readerSpacing by remember { mutableFloatStateOf(prefs.getFloat("reader_spacing", 1.5f)) }
     var readerMargin by remember {
         mutableFloatStateOf(run {
-            // Migrate the old fixed 24dp default to a screen-proportional book margin once.
-            val initialized = prefs.getBoolean("reader_margin_adaptive_initialized", false)
-            if (!initialized) {
+            // Apply the new book-like column profile once; preserve later manual adjustments.
+            val profileVersion = prefs.getInt("reader_margin_profile_version", 0)
+            if (profileVersion < 2) {
                 prefs.edit()
                     .putFloat("reader_margin", defaultReaderMargin)
-                    .putBoolean("reader_margin_adaptive_initialized", true)
+                    .putInt("reader_margin_profile_version", 2)
                     .apply()
                 defaultReaderMargin
             } else {
-                prefs.getFloat("reader_margin", defaultReaderMargin)
+                prefs.getFloat("reader_margin", defaultReaderMargin).coerceIn(24f, 80f)
             }
         })
     }
@@ -375,7 +375,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.17-beta"
+    val appVersion = "0.4.18-beta"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -428,6 +428,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.14-beta" to "Исправлены разрывы слов отдельными страницами, добавлен предпросмотр симметричных боковых полей и ограничение их размеров.",
         "0.4.15-beta" to "Добавлен запас высоты для нижних элементов букв и включены шрифтовые отступы, чтобы текст не обрезался при минимальном интервале.",
         "0.4.16-beta" to "Кнопка Назад на телефоне возвращает из книги в библиотеку. Боковые поля: 16–40 dp, стандарт — 24 dp.",
+        "0.4.18-beta" to "Изменена ширина книжной колонки и согласованы настройки боковых полей. В панели чтения вместо подписи размера текста показывается его текущее числовое значение.",
         "0.4.17-beta" to "Адаптивные боковые поля: начальная ширина книжной области подбирается по ширине экрана, как на образце."
     )
     // Include every release since the last version the reader actually opened.
@@ -705,7 +706,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val effectiveMargin = readerMargin.coerceIn(24f, 64f)
+                        val effectiveMargin = readerMargin.coerceIn(24f, 80f)
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
@@ -796,6 +797,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         if (showControls) {
                             com.openreader.ui.ReaderTopBar(
                                 title = book.title,
+                                fontSize = fontSize,
                                 onBack = { currentBookUri = null; content = "" },
                                 onBookmark = {
                                     val key = "bookmarks_" + book.uri.hashCode()
