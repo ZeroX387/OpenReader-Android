@@ -7,4 +7,11 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:colorAccent">#6D5A45</item>
     </style>
+    <style name="OpenReaderTheme.Dark" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#181818</item>
+        <item name="android:statusBarColor">#181818</item>
+        <item name="android:navigationBarColor">#181818</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:colorAccent">#D0BFA5</item>
+    </style>
 </resources>
