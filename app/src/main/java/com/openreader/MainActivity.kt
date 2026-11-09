@@ -775,31 +775,35 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             )
                         }
                         if (showControls) {
-                            Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    TextButton(onClick = { currentBookUri = null; content = "" }) { Text("← Назад") }
-                                    Text(book.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                                TextButton(onClick = {
+                            com.openreader.ui.ReaderTopBar(
+                                title = book.title,
+                                onBack = { currentBookUri = null; content = "" },
+                                onBookmark = {
                                     val key = "bookmarks_" + book.uri.hashCode()
                                     val items = org.json.JSONArray(prefs.getString(key, "[]") ?: "[]")
                                     if ((0 until items.length()).none { items.optInt(it) == charPosition }) {
-                                        items.put(charPosition); prefs.edit().putString(key, items.toString()).apply()
+                                        items.put(charPosition)
+                                        prefs.edit().putString(key, items.toString()).apply()
                                     }
-                                    notesBook = book; notesMode = "Закладки"
-                                }) { Text("🔖") }
-                                TextButton(onClick = {
+                                    notesBook = book
+                                    notesMode = "Закладки"
+                                },
+                                onQuotes = {
                                     quotePosition = charPosition
                                     quoteDraft = ""
                                     quoteEditor = true
-                                }) { Text("❝") }
-                                TextButton(onClick = { notesBook = book; notesMode = "Цитаты" }) { Text("☷") }
-                                TextButton(onClick = { fontSize = (fontSize - 1).coerceAtLeast(12f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A−") }
-                                IconButton(onClick = { showReaderSettings = true }) { Text("⚙️", style = MaterialTheme.typography.titleLarge) }
-                                TextButton(onClick = { fontSize = (fontSize + 1).coerceAtMost(32f); prefs.edit().putFloat("font_size", fontSize).apply() }) { Text("A+") }
-                            }
-                            }
+                                },
+                                onDecreaseText = {
+                                    fontSize = (fontSize - 1).coerceAtLeast(12f)
+                                    prefs.edit().putFloat("font_size", fontSize).apply()
+                                },
+                                onSettings = { showReaderSettings = true },
+                                onIncreaseText = {
+                                    fontSize = (fontSize + 1).coerceAtMost(32f)
+                                    prefs.edit().putFloat("font_size", fontSize).apply()
+                                },
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            )
                         }
                     }
                 } else {
