@@ -45,6 +45,7 @@ import android.util.LruCache
 import java.util.concurrent.Executors
 import java.io.File
 import java.io.FileOutputStream
+import java.io.FileInputStream
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -284,7 +285,13 @@ class SimplePdfActivity : Activity() {
                 val cacheDirectory = File(cacheDir, "pdf_cache").apply { mkdirs() }
                 val localFile = File.createTempFile("openreader_", ".pdf", cacheDirectory)
                 try {
-                    contentResolver.openInputStream(uri)?.use { input ->
+                    val source = if (uri.scheme == "file") {
+                        val path = uri.path ?: error("Некорректный путь к PDF-файлу.")
+                        FileInputStream(File(path))
+                    } else {
+                        contentResolver.openInputStream(uri)
+                    }
+                    source?.use { input ->
                         FileOutputStream(localFile).use { output ->
                             input.copyTo(output, 64 * 1024)
                             output.fd.sync()
