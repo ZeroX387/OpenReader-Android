@@ -4,18 +4,28 @@ import android.content.Context
 import android.net.Uri
 import org.apache.poi.hwpf.extractor.WordExtractor
 import java.io.BufferedInputStream
+import java.io.File
+import java.io.FileInputStream
 
 internal fun readLegacyDocText(context: Context, uri: Uri): String {
-    val asset = context.contentResolver.openAssetFileDescriptor(uri, "r")
-        ?: error("Не удалось открыть DOC-файл.")
+    // Imported books are stored in the app's private folder and represented by file:// URIs.
+    // SAF/library documents use content:// URIs and are opened through ContentResolver.
+    val localFile = if (uri.scheme == "file") {
+        File(uri.path ?: error("Некорректный путь к DOC-файлу."))
+    } else null
+    if (localFile != null && !localFile.isFile) error("DOC-файл не найден.")
+    if (localFile != null && localFile.length() > 35_000_000L) {
+        error("Документ DOC слишком большой (лимит 35 МБ).")
+    }
 
-    asset.use { descriptor ->
-        // Check the known file size without first copying the entire document into a byte array.
-        if (descriptor.length > 35_000_000L) {
-            error("Документ DOC слишком большой (лимит 35 МБ).")
-        }
-
-        val input = BufferedInputStream(descriptor.createInputStream(), 64 * 1024)
+    val source = if (localFile != null) {
+        FileInputStream(localFile)
+    } else {
+        context.contentResolver.openInputStream(uri)
+            ?: error("Не удалось открыть DOC-файл.")
+    }
+    source.use { stream ->
+        val input = BufferedInputStream(stream, 64 * 1024)
         val extractor = try {
             WordExtractor(input)
         } catch (e: Exception) {
