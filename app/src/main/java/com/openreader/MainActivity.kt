@@ -987,9 +987,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         }
                                     }
                             ) {
-                                if (loadedBookUri == book.uri && content.isNotEmpty() && readyStarts != null) {
-                                    val pageStart = readyStarts.getOrNull(page)?.coerceIn(0, content.length) ?: 0
-                                    val pageEnd = (readyStarts.getOrNull(page + 1) ?: content.length).coerceIn(pageStart, content.length)
+                                if (loadedBookUri == book.uri && content.isNotEmpty()) {
+                                    // Keep the existing book visible while pagination is recalculated
+                                    // after a dialog/keyboard changes the available viewport.
+                                    val pageStart = (readyStarts?.getOrNull(page) ?: 0).coerceIn(0, content.length)
+                                    val pageEnd = (readyStarts?.getOrNull(page + 1) ?: content.length).coerceIn(pageStart, content.length)
                                     val pageText = content.substring(pageStart, pageEnd)
                                     Text(
                                         styledPage(pageText),
@@ -1055,6 +1057,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     notesMode = "Закладки"
                                 },
                                 onQuotes = {
+                                    wordCorrectionEditMode = false
                                     quotePosition = charPosition
                                     quoteDraft = ""
                                     quoteEditor = true
@@ -1253,6 +1256,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         }
         if (wordToCorrect != null && currentBook != null) {
             val selectedWord = wordToCorrect!!
+            val savedCorrections = loadWordCorrections(context, currentBook!!.uri)
+            val existingCorrection = savedCorrections.firstOrNull {
+                it.replacement.equals(selectedWord, ignoreCase = true)
+            }
             val matchCount = countWholeWordOccurrences(content, selectedWord)
             AlertDialog(
                 onDismissRequest = { wordToCorrect = null; correctionDraft = "" },
@@ -1296,7 +1303,27 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     ) { Text("Сохранить") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { wordToCorrect = null; correctionDraft = "" }) { Text("Отмена") }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (existingCorrection != null) {
+                            TextButton(onClick = {
+                                val bookUri = currentBook!!.uri
+                                try {
+                                    val remaining = savedCorrections.filterNot {
+                                        it.original.equals(existingCorrection.original, ignoreCase = true)
+                                    }
+                                    saveWordCorrections(context, bookUri, remaining)
+                                    val originalText = readCachedBookText(context, bookUri) ?: content
+                                    content = applyWordCorrections(context, bookUri, originalText)
+                                    wordToCorrect = null
+                                    correctionDraft = ""
+                                    android.widget.Toast.makeText(context, "Исправление удалено", android.widget.Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    error = e.message ?: "Не удалось удалить исправление."
+                                }
+                            }) { Text("Удалить исправление") }
+                        }
+                        TextButton(onClick = { wordToCorrect = null; correctionDraft = "" }) { Text("Отмена") }
+                    }
                 }
             )
         }
