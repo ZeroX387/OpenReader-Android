@@ -351,6 +351,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var selectedTab by remember { mutableIntStateOf(0) }
     // Track the library offset and capture it synchronously before switching screens.
     val libraryScrollState = rememberScrollState()
+    // The navigation bar is hidden in the reader and returns in the library.
+    // Keep an equal amount of scrollable space at the bottom so the viewport change
+    // does not clamp the previously saved scroll position.
+    val libraryNavigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     var savedLibraryScrollPosition by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(libraryScrollState) {
         snapshotFlow { libraryScrollState.value }.collect { offset ->
@@ -928,7 +932,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         }
                     }
                 } else {
-                    Column(Modifier.fillMaxSize().verticalScroll(libraryScrollState).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(
+                        Modifier.fillMaxSize()
+                            .verticalScroll(libraryScrollState)
+                            .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp + libraryNavigationInset),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Text(
                             listOf("Моя библиотека", "Избранное", "Папки и коллекции", "Прочитанные книги")[selectedTab],
                             style = MaterialTheme.typography.headlineMedium
