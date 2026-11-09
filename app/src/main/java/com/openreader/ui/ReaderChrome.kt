@@ -15,6 +15,7 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.FormatQuote
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -48,7 +49,9 @@ fun ReaderTopBar(
     modifier: Modifier = Modifier,
     showTextSizeControls: Boolean = true,
     showQuotesAction: Boolean = true,
-    onSearch: (() -> Unit)? = null
+    onSearch: (() -> Unit)? = null,
+    onEditWord: (() -> Unit)? = null,
+    wordEditMode: Boolean = false
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -78,6 +81,13 @@ fun ReaderTopBar(
                 }
                 if (onSearch != null) IconButton(onClick = onSearch) {
                     Icon(Icons.Outlined.Search, contentDescription = "Поиск")
+                }
+                if (onEditWord != null) IconButton(onClick = onEditWord) {
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = "Исправить слово",
+                        tint = if (wordEditMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
                 }
                 IconButton(onClick = onSettings) {
                     Icon(Icons.Outlined.Settings, contentDescription = "Настройки")
