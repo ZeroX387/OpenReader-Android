@@ -1,0 +1,16 @@
+name: Actions Runner Diagnostic
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Confirm GitHub-hosted runner starts
+        run: echo "GitHub Actions runner is working."
