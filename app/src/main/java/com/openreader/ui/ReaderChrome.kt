@@ -5,8 +5,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.ChevronLeft
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.FormatQuote
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,10 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * Shared visual chrome for every OpenReader format.
- * Format-specific readers provide actions; the placement and visual hierarchy stay the same.
- */
+/** Shared visual chrome for every OpenReader format. */
 @Composable
 fun ReaderTopBar(
     title: String,
@@ -41,26 +48,36 @@ fun ReaderTopBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
         shadowElevation = 4.dp
     ) {
         androidx.compose.foundation.layout.Column {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp).padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onBack) { Text("‹") }
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Outlined.ArrowBack, contentDescription = "Назад")
+                }
                 Text(
                     text = title,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleSmall
+                    style = MaterialTheme.typography.titleMedium
                 )
-                IconButton(onClick = onBookmark) { Text("🔖") }
-                if (showQuotesAction) IconButton(onClick = onQuotes) { Text("❝") }
-                if (onSearch != null) IconButton(onClick = onSearch) { Text("⌕") }
-                IconButton(onClick = onSettings) { Text("⚙") }
+                IconButton(onClick = onBookmark) {
+                    Icon(Icons.Outlined.BookmarkBorder, contentDescription = "Закладка")
+                }
+                if (showQuotesAction) IconButton(onClick = onQuotes) {
+                    Icon(Icons.Outlined.FormatQuote, contentDescription = "Цитаты")
+                }
+                if (onSearch != null) IconButton(onClick = onSearch) {
+                    Icon(Icons.Outlined.Search, contentDescription = "Поиск")
+                }
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "Настройки")
+                }
             }
             if (showTextSizeControls) {
                 Row(
@@ -69,7 +86,7 @@ fun ReaderTopBar(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDecreaseText) { Text("A−") }
-                    Text("Размер текста", style = MaterialTheme.typography.labelSmall,
+                    Text("Размер текста", style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     TextButton(onClick = onIncreaseText) { Text("A+") }
                 }
@@ -77,7 +94,6 @@ fun ReaderTopBar(
         }
     }
 }
-
 
 /** Shared page navigation for reflowable and fixed-layout readers. */
 @Composable
@@ -94,19 +110,20 @@ fun ReaderBottomBar(
     val sliderValue = remember(safeIndex, safeCount) { mutableFloatStateOf(safeIndex.toFloat()) }
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
         shadowElevation = 4.dp
     ) {
         androidx.compose.foundation.layout.Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
-            androidx.compose.foundation.layout.Row(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 TextButton(onClick = onPrevious, enabled = safeCount > 0 && safeIndex > 0) {
-                    Text("‹ Назад")
+                    Icon(Icons.Outlined.ChevronLeft, contentDescription = null)
+                    Text("Назад")
                 }
                 Text(
                     if (safeCount > 0) "${safeIndex + 1} / $safeCount" else "Загрузка книги…",
@@ -114,7 +131,8 @@ fun ReaderBottomBar(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 TextButton(onClick = onNext, enabled = safeCount > 0 && safeIndex < safeCount - 1) {
-                    Text("Вперёд ›")
+                    Text("Вперёд")
+                    Icon(Icons.Outlined.ChevronRight, contentDescription = null)
                 }
             }
             if (safeCount > 1) {
@@ -128,7 +146,6 @@ fun ReaderBottomBar(
         }
     }
 }
-
 
 /** Shared appearance controls used by every reader format. */
 @Composable
@@ -171,52 +188,31 @@ fun ReaderAppearanceSettings(
         }
         if (showTypography) {
             Text("Размер шрифта: ${fontSize.toInt()} sp")
-            androidx.compose.material3.Slider(
-                value = fontSize,
-                onValueChange = onFontSizeChange,
-                valueRange = 12f..32f,
-                steps = 19
-            )
+            androidx.compose.material3.Slider(value = fontSize, onValueChange = onFontSizeChange, valueRange = 12f..32f, steps = 19)
             Text("Межстрочный интервал: ${String.format(java.util.Locale.US, "%.2f", readerSpacing)}")
-            androidx.compose.material3.Slider(
-                value = readerSpacing,
-                onValueChange = onSpacingChange,
-                valueRange = 1.1f..2.0f
-            )
+            androidx.compose.material3.Slider(value = readerSpacing, onValueChange = onSpacingChange, valueRange = 1.1f..2.0f)
             Text("Предпросмотр", style = MaterialTheme.typography.titleSmall)
             Text(
-                "Однажды в студёную зимнюю пору\\nЯ из лесу вышел; был сильный мороз.\\nИдёт себе лесом, глядит — поднимается солнце.",
-                fontSize = fontSize.sp,
-                lineHeight = (fontSize * readerSpacing).sp,
-                color = pageInk,
+                "Однажды в студёную зимнюю пору\nЯ из лесу вышел; был сильный мороз.\nИдёт себе лесом, глядит — поднимается солнце.",
+                fontSize = fontSize.sp, lineHeight = (fontSize * readerSpacing).sp, color = pageInk,
                 modifier = Modifier.fillMaxWidth().background(pageBackground).padding(12.dp)
             )
-            androidx.compose.material3.TextButton(onClick = {
-                onFontSizeChange(19f)
-                onSpacingChange(1.5f)
-            }) { Text("Вернуть стандарт: 19 sp / 1,5") }
+            androidx.compose.material3.TextButton(onClick = { onFontSizeChange(19f); onSpacingChange(1.5f) }) {
+                Text("Вернуть стандарт: 19 sp / 1,5")
+            }
             Text("Боковые поля: ${readerMargin.coerceIn(16f, 40f).toInt()} dp")
             Text("Слева и справа одинаковые. Сверху и снизу — по 12 dp.", style = MaterialTheme.typography.bodySmall)
             androidx.compose.foundation.layout.Box(
-                Modifier.fillMaxWidth().background(pageBackground)
-                    .padding(horizontal = readerMargin.coerceIn(16f, 40f).dp, vertical = 12.dp)
+                Modifier.fillMaxWidth().background(pageBackground).padding(horizontal = readerMargin.coerceIn(16f, 40f).dp, vertical = 12.dp)
             ) {
                 Text(
                     "Это пример страницы книги. Поля по бокам меняются сразу, а текст остаётся внутри книжной области.",
-                    fontSize = 14.sp,
-                    color = pageInk,
-                    lineHeight = 21.sp,
+                    fontSize = 14.sp, color = pageInk, lineHeight = 21.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Justify
                 )
             }
-            androidx.compose.material3.Slider(
-                value = readerMargin.coerceIn(16f, 40f),
-                onValueChange = onMarginChange,
-                valueRange = 16f..40f
-            )
-            androidx.compose.material3.TextButton(onClick = { onMarginChange(24f) }) {
-                Text("Стандартные поля")
-            }
+            androidx.compose.material3.Slider(value = readerMargin.coerceIn(16f, 40f), onValueChange = onMarginChange, valueRange = 16f..40f)
+            androidx.compose.material3.TextButton(onClick = { onMarginChange(24f) }) { Text("Стандартные поля") }
         } else {
             Text(
                 "Для PDF размер и расположение текста определяются самим документом. Его масштаб меняется жестом увеличения.",
