@@ -742,22 +742,24 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         // These are the exact same content bounds used by the visible Text.
                         val widthPx = with(density) { (maxWidth - 64.dp).roundToPx() }
-                        val heightPx = with(density) { (maxHeight - 40.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 48.dp).roundToPx() }
                         val readerTextStyle = TextStyle(
                             fontSize = fontSize.sp,
                             lineHeight = (fontSize * readerSpacing).sp,
                             textAlign = TextAlign.Justify,
                             platformStyle = PlatformTextStyle(includeFontPadding = true)
                         )
-                        val starts by key(content, widthPx, heightPx, readerTextStyle, charPosition) {
-                            produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, readerTextStyle, charPosition) {
+                        // Pagination depends only on layout inputs, never on the current page.
+                        // This keeps page boundaries stable while moving forward or backward.
+                        val starts by key(content, widthPx, heightPx, readerTextStyle) {
+                            produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, readerTextStyle) {
                                 value = withContext(Dispatchers.Default) {
                                     val measured = textMeasurer.measure(
                                         text = styledPage(content),
                                         style = readerTextStyle,
                                         constraints = Constraints(maxWidth = widthPx)
                                     )
-                                    pageStarts(measured, heightPx, charPosition)
+                                    pageStarts(measured, heightPx, 0)
                                 }
                             }
                         }
@@ -809,7 +811,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         styledPage(content.substring(pageStart, pageEnd)),
                                         color = readerInk,
                                         style = readerTextStyle,
-                                        modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 8.dp)
+                                        modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
                                     )
                                     if (readyStarts == null) {
                                         LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth())
