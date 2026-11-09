@@ -29,9 +29,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import android.text.Html
-import android.text.StaticLayout
-import android.text.TextPaint
-import android.graphics.Typeface
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -269,22 +271,10 @@ internal fun cleanBookText(raw: String): String {
         .replace(Regex("\\n{3,}"), "\n\n").trim()
 }
 
-private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float, anchor: Int, spacing: Float): List<Int> {
-    if (text.isEmpty() || widthPx <= 0 || heightPx <= 0) return listOf(0)
-    val paint = TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = fontPx
-        typeface = Typeface.DEFAULT
-    }
-    val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, widthPx)
-        .setIncludePad(true)
-        .setLineSpacing((fontPx * (spacing - 1f)).coerceAtLeast(0f), 1f)
-        .setJustificationMode(android.text.Layout.JUSTIFICATION_MODE_INTER_WORD)
-        .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY)
-        // Never split a word at a page boundary; the next page must start at a complete word.
-        .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE)
-        .build()
-    if (layout.lineCount == 0) return listOf(0)
-    val anchorLine = layout.getLineForOffset(anchor.coerceIn(0, text.lastIndex))
+private fun pageStarts(layout: TextLayoutResult, heightPx: Int, anchor: Int): List<Int> {
+    val textLength = layout.layoutInput.text.length
+    if (textLength == 0 || heightPx <= 0 || layout.lineCount == 0) return listOf(0)
+    val anchorLine = layout.getLineForOffset(anchor.coerceIn(0, textLength - 1))
     val lineStarts = mutableListOf(anchorLine)
     var firstLine = anchorLine
     while (firstLine > 0) {
@@ -305,8 +295,7 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float,
         lineStarts.add(next)
         current = next
     }
-    // Page boundaries must coincide with line starts. Injecting an arbitrary
-    // character offset created one-word pages (e.g. "ко" / "торый").
+    // Use Compose's own line layout for both pagination and display.
     return lineStarts.map { layout.getLineStart(it) }.distinct().sorted()
 }
 
@@ -749,19 +738,27 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     }
 
                     val density = LocalDensity.current
+                    val textMeasurer = rememberTextMeasurer(cacheSize = 0)
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        // Keep pagination width identical to the actual 18 dp text insets.
-                        val effectiveMargin = 32f
-                        val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
-                        // Reserve fixed space for controls and page counter so pagination
-                        // doesn't change when the controls are shown or hidden.
+                        // These are the exact same content bounds used by the visible Text.
+                        val widthPx = with(density) { (maxWidth - 64.dp).roundToPx() }
                         val heightPx = with(density) { (maxHeight - 40.dp).roundToPx() }
-                        val fontPx = with(density) { fontSize.sp.toPx() }
-                        val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
-                            produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx) {
-                            value = withContext(Dispatchers.Default) {
-                                pageStarts(content, widthPx, heightPx, fontPx, charPosition, readerSpacing)
-                            }
+                        val readerTextStyle = TextStyle(
+                            fontSize = fontSize.sp,
+                            lineHeight = (fontSize * readerSpacing).sp,
+                            textAlign = TextAlign.Justify,
+                            platformStyle = PlatformTextStyle(includeFontPadding = true)
+                        )
+                        val starts by key(content, widthPx, heightPx, readerTextStyle, charPosition) {
+                            produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, readerTextStyle, charPosition) {
+                                value = withContext(Dispatchers.Default) {
+                                    val measured = textMeasurer.measure(
+                                        text = styledPage(content),
+                                        style = readerTextStyle,
+                                        constraints = Constraints(maxWidth = widthPx)
+                                    )
+                                    pageStarts(measured, heightPx, charPosition)
+                                }
                             }
                         }
                         val safePosition = charPosition.coerceIn(0, content.length)
@@ -804,17 +801,19 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         }
                                     }
                             ) {
-                                if (loadedBookUri == book.uri && content.isNotEmpty() && readyStarts != null && readyStarts.firstOrNull() != null) {
-                                    val endChar = if (page + 1 < readyStarts.size) readyStarts[page + 1] else content.length
+                                if (loadedBookUri == book.uri && content.isNotEmpty()) {
+                                    // Keep the restored page visible while fresh pagination is calculated.
+                                    val pageStart = (readyStarts?.getOrNull(page) ?: safePosition).coerceIn(0, content.length)
+                                    val pageEnd = (readyStarts?.getOrNull(page + 1) ?: (pageStart + 4000)).coerceIn(pageStart, content.length)
                                     Text(
-                                        styledPage(content.substring(readyStarts[page].coerceIn(0, content.length), endChar.coerceIn(readyStarts[page].coerceIn(0, content.length), content.length))),
-                                        fontSize = fontSize.sp,
-                                        lineHeight = (fontSize * readerSpacing).sp,
+                                        styledPage(content.substring(pageStart, pageEnd)),
                                         color = readerInk,
-                                        textAlign = TextAlign.Justify,
-                                        style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)),
+                                        style = readerTextStyle,
                                         modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 8.dp)
                                     )
+                                    if (readyStarts == null) {
+                                        LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth())
+                                    }
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                         Text("📖", style = MaterialTheme.typography.displayLarge)
