@@ -78,6 +78,8 @@ class SimplePdfActivity : Activity() {
     private lateinit var gestureDetector: GestureDetector
 
     private var pageBackground = Color.rgb(250, 247, 240)
+    // PDF-only page inset; reflowable formats keep their own book-column margins.
+    private val edgePaddingDp = 8
     private val readerThemeState = mutableStateOf("paper")
     private val progressPrefs by lazy { getSharedPreferences("pdf_progress", MODE_PRIVATE) }
     private val progressKey: String
@@ -186,6 +188,8 @@ class SimplePdfActivity : Activity() {
 
         val root = FrameLayout(this).apply {
             setBackgroundColor(pageBackground)
+            val edgePaddingPx = dp(edgePaddingDp)
+            setPadding(edgePaddingPx, edgePaddingPx, edgePaddingPx, edgePaddingPx)
             addView(pageView, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -350,7 +354,8 @@ class SimplePdfActivity : Activity() {
         if (index !in 0 until activeRenderer.pageCount) return@synchronized null
         activeRenderer.openPage(index).use { page ->
             val display = resources.displayMetrics
-            var width = (display.widthPixels * 1.2f).toInt().coerceIn(720, 1600)
+            // Render only to the PDF content width, excluding the 8 dp inset on both sides.
+            var width = (display.widthPixels - dp(edgePaddingDp * 2)).coerceAtLeast(1)
             var height = (width.toDouble() * page.height / page.width).toInt().coerceAtLeast(1)
             val maxPixels = 1_800_000L
             val pixels = width.toLong() * height
@@ -392,9 +397,12 @@ class SimplePdfActivity : Activity() {
         val viewWidth = pageView.width.toFloat()
         val viewHeight = pageView.height.toFloat()
         if (viewWidth <= 0f || viewHeight <= 0f) return
-        val scale = min(viewWidth / bitmap.intrinsicWidth, viewHeight / bitmap.intrinsicHeight)
-        val dx = (viewWidth - bitmap.intrinsicWidth * scale) / 2f
-        val dy = (viewHeight - bitmap.intrinsicHeight * scale) / 2f
+        // PDF pages are fitted to the available width (not contained by height).
+        // Tall pages start at the top and can be zoomed; short pages stay vertically centered.
+        val scale = viewWidth / bitmap.intrinsicWidth
+        val dx = 0f
+        val scaledHeight = bitmap.intrinsicHeight * scale
+        val dy = ((viewHeight - scaledHeight) / 2f).coerceAtLeast(0f)
         pageView.imageMatrix = Matrix().apply {
             setScale(scale, scale)
             postTranslate(dx, dy)
