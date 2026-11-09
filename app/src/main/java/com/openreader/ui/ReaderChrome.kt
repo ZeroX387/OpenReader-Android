@@ -30,7 +30,10 @@ fun ReaderTopBar(
     onDecreaseText: () -> Unit,
     onSettings: () -> Unit,
     onIncreaseText: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showTextSizeControls: Boolean = true,
+    showQuotesAction: Boolean = true,
+    onSearch: (() -> Unit)? = null
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -51,18 +54,21 @@ fun ReaderTopBar(
                     style = MaterialTheme.typography.titleSmall
                 )
                 IconButton(onClick = onBookmark) { Text("🔖") }
-                IconButton(onClick = onQuotes) { Text("❝") }
+                if (showQuotesAction) IconButton(onClick = onQuotes) { Text("❝") }
+                if (onSearch != null) IconButton(onClick = onSearch) { Text("⌕") }
                 IconButton(onClick = onSettings) { Text("⚙") }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = onDecreaseText) { Text("A−") }
-                Text("Размер текста", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onIncreaseText) { Text("A+") }
+            if (showTextSizeControls) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDecreaseText) { Text("A−") }
+                    Text("Размер текста", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = onIncreaseText) { Text("A+") }
+                }
             }
         }
     }
