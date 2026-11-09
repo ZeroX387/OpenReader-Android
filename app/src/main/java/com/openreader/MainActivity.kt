@@ -861,7 +861,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             Triple("📚", "Библиотека", 0),
                             Triple("★", "Избранное", 1),
                             Triple("▤", "Папки и коллекции", 2),
-                            Triple("✓", "Прочитанные", 3)
+                            Triple("✓", "Прочитанные", 3),
+                            Triple("🔖", "Закладки и цитаты", 4)
                         ).forEach { (symbol, label, index) ->
                             NavigationDrawerItem(
                                 label = { Text(label) },
@@ -908,13 +909,15 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     val book = currentBook!!
                     val positionKey = "page_char_" + book.uri.hashCode()
                     var charPosition by rememberSaveable(book.uri) {
-                        mutableIntStateOf(prefs.getInt(positionKey, 0).coerceAtLeast(0))
+                        mutableIntStateOf(
+                            (prefs.getInt("jump_" + book.uri.hashCode(), -1)
+                                .takeIf { it >= 0 }
+                                ?: prefs.getInt(positionKey, 0)).coerceAtLeast(0)
+                        )
                     }
-                    LaunchedEffect(book.uri) { bookmarkPosition = prefs.getInt("jump_" + book.uri.hashCode(), -1) }
-                    LaunchedEffect(book.uri, bookmarkPosition) {
-                        if (bookmarkPosition >= 0) {
-                            charPosition = bookmarkPosition.coerceAtLeast(0)
-                            bookmarkPosition = -1
+                    // Read pending jumps before the first reader frame to avoid flashing page one.
+                    LaunchedEffect(book.uri) {
+                        if (prefs.getInt("jump_" + book.uri.hashCode(), -1) >= 0) {
                             prefs.edit().putInt("jump_" + book.uri.hashCode(), -1).apply()
                         }
                     }
@@ -1111,7 +1114,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            listOf("Моя библиотека", "Избранное", "Папки и коллекции", "Прочитанные книги")[selectedTab],
+                            listOf("Моя библиотека", "Избранное", "Папки и коллекции", "Прочитанные книги", "Закладки и цитаты")[selectedTab],
                             style = MaterialTheme.typography.headlineMedium
                         )
                         if (selectedTab == 0) {
@@ -1222,6 +1225,86 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                                         })
                                                     }
                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (selectedTab == 4) {
+                            var notesRefresh by remember { mutableIntStateOf(0) }
+                            val allBookmarkRows = books.flatMap { sourceBook ->
+                                val array = org.json.JSONArray(prefs.getString("bookmarks_" + sourceBook.uri.hashCode(), "[]") ?: "[]")
+                                (0 until array.length()).mapNotNull { index ->
+                                    val value = array.opt(index)
+                                    val position = if (value is org.json.JSONObject) value.optInt("position", -1) else (value as? Number)?.toInt() ?: -1
+                                    if (position < 0) null else Triple(sourceBook, position, index)
+                                }
+                            }
+                            val allQuoteRows = books.flatMap { sourceBook ->
+                                val array = org.json.JSONArray(prefs.getString("quotes_" + sourceBook.uri.hashCode(), "[]") ?: "[]")
+                                (0 until array.length()).mapNotNull { index ->
+                                    val entry = array.optJSONObject(index) ?: return@mapNotNull null
+                                    Triple(sourceBook, entry, index)
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(selected = notesMode == "Закладки", onClick = { notesMode = "Закладки" }, label = { Text(notesRefresh.let { "Закладки (${allBookmarkRows.size})" }) })
+                                FilterChip(selected = notesMode == "Цитаты", onClick = { notesMode = "Цитаты" }, label = { Text(notesRefresh.let { "Цитаты (${allQuoteRows.size})" }) })
+                            }
+                            if (notesMode == "Закладки") {
+                                if (allBookmarkRows.isEmpty()) Text("Закладок пока нет. Поставить закладку можно во время чтения.")
+                                allBookmarkRows.forEach { (sourceBook, position, index) ->
+                                    val key = "bookmarks_" + sourceBook.uri.hashCode()
+                                    val data = org.json.JSONArray(prefs.getString(key, "[]") ?: "[]")
+                                    val raw = data.opt(index)
+                                    val label = if (raw is org.json.JSONObject) raw.optString("label").ifBlank { "Закладка" } else "Закладка"
+                                    Card(modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(label, style = MaterialTheme.typography.titleMedium)
+                                            Text(sourceBook.title, style = MaterialTheme.typography.bodyMedium)
+                                            Text("Позиция в книге: $position", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                TextButton(onClick = {
+                                                    prefs.edit().putInt("jump_" + sourceBook.uri.hashCode(), position).apply()
+                                                    currentBookUri = sourceBook.uri
+                                                }) { Text("Открыть") }
+                                                TextButton(onClick = {
+                                                    val updated = org.json.JSONArray()
+                                                    for (j in 0 until data.length()) if (j != index) updated.put(data.opt(j))
+                                                    prefs.edit().putString(key, updated.toString()).apply()
+                                                    notesRefresh++
+                                                }) { Text("Удалить") }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                if (allQuoteRows.isEmpty()) Text("Цитат пока нет. Выдели фрагмент в книге и сохрани его.")
+                                allQuoteRows.forEach { (sourceBook, entry, index) ->
+                                    val key = "quotes_" + sourceBook.uri.hashCode()
+                                    val data = org.json.JSONArray(prefs.getString(key, "[]") ?: "[]")
+                                    val position = entry.optInt("position", 0)
+                                    Card(modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("«" + entry.optString("text") + "»", style = MaterialTheme.typography.bodyLarge)
+                                            Text(sourceBook.title, style = MaterialTheme.typography.bodyMedium)
+                                            Text("Позиция в книге: $position", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                TextButton(onClick = {
+                                                    prefs.edit().putInt("jump_" + sourceBook.uri.hashCode(), position).apply()
+                                                    currentBookUri = sourceBook.uri
+                                                }) { Text("Открыть") }
+                                                TextButton(onClick = {
+                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Цитата", entry.optString("text")))
+                                                }) { Text("Копировать") }
+                                                TextButton(onClick = {
+                                                    val updated = org.json.JSONArray()
+                                                    for (j in 0 until data.length()) if (j != index) updated.put(data.opt(j))
+                                                    prefs.edit().putString(key, updated.toString()).apply()
+                                                    notesRefresh++
+                                                }) { Text("Удалить") }
                                             }
                                         }
                                     }
