@@ -79,8 +79,8 @@ class SimplePdfActivity : Activity() {
 
     private var pageBackground = Color.rgb(250, 247, 240)
     // Page inset: 14 dp on the sides and top, 6 dp at the bottom.
-    private val edgePaddingDp = 14
-    private val bottomPaddingDp = 6
+    private val edgePaddingDp = 18
+    private val bottomPaddingDp = 8
     private val readerThemeState = mutableStateOf("paper")
     private val progressPrefs by lazy { getSharedPreferences("pdf_progress", MODE_PRIVATE) }
     private val progressKey: String
