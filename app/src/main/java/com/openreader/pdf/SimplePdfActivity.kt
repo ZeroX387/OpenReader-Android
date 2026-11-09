@@ -24,7 +24,19 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.platform.ComposeView
 import android.widget.Toast
 import android.util.LruCache
@@ -63,7 +75,8 @@ class SimplePdfActivity : Activity() {
     private lateinit var scaleDetector: ScaleGestureDetector
     private lateinit var gestureDetector: GestureDetector
 
-    private val pageBackground = Color.rgb(245, 230, 200)
+    private var pageBackground = Color.rgb(250, 247, 240)
+    private val readerThemeState = mutableStateOf("paper")
     private val progressPrefs by lazy { getSharedPreferences("pdf_progress", MODE_PRIVATE) }
     private val progressKey: String
         get() = "page_" + (intent.data?.toString() ?: "unknown").hashCode()
@@ -72,6 +85,9 @@ class SimplePdfActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enterImmersiveMode()
+        readerThemeState.value = getSharedPreferences("openreader", MODE_PRIVATE)
+            .getString("reader_theme", "paper") ?: "paper"
+        pageBackground = pdfBackgroundFor(readerThemeState.value)
 
         val uri = intent.data ?: intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
         if (uri == null) {
@@ -94,7 +110,12 @@ class SimplePdfActivity : Activity() {
         }
         topBar = ComposeView(this).apply {
             setContent {
-                MaterialTheme(colorScheme = lightColorScheme()) {
+                var showAppearanceSettings by androidx.compose.runtime.remember { mutableStateOf(false) }
+                val appearancePrefs = getSharedPreferences("openreader", MODE_PRIVATE)
+                var fontSize by androidx.compose.runtime.remember { mutableFloatStateOf(appearancePrefs.getFloat("font_size", 19f)) }
+                var readerSpacing by androidx.compose.runtime.remember { mutableFloatStateOf(appearancePrefs.getFloat("reader_spacing", 1.5f)) }
+                var readerMargin by androidx.compose.runtime.remember { mutableFloatStateOf(appearancePrefs.getFloat("reader_margin", 24f)) }
+                MaterialTheme(colorScheme = if (readerThemeState.value == "dark") darkColorScheme() else lightColorScheme()) {
                     com.openreader.ui.ReaderTopBar(
                         title = intent.getStringExtra("book_title") ?: "PDF",
                         onBack = { finish() },
@@ -107,9 +128,7 @@ class SimplePdfActivity : Activity() {
                         },
                         onQuotes = {},
                         onDecreaseText = {},
-                        onSettings = {
-                            Toast.makeText(this@SimplePdfActivity, "Настройки PDF появятся в общем меню чтения", Toast.LENGTH_SHORT).show()
-                        },
+                        onSettings = { showAppearanceSettings = true },
                         onIncreaseText = {},
                         showTextSizeControls = false,
                         showQuotesAction = false,
@@ -117,13 +136,40 @@ class SimplePdfActivity : Activity() {
                             Toast.makeText(this@SimplePdfActivity, "Поиск по тексту PDF добавим следующим этапом", Toast.LENGTH_SHORT).show()
                         }
                     )
+                    if (showAppearanceSettings) {
+                        AlertDialog(
+                            onDismissRequest = { showAppearanceSettings = false },
+                            title = { Text("Оформление книги") },
+                            text = {
+                                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                                    com.openreader.ui.ReaderAppearanceSettings(
+                                        readerTheme = readerThemeState.value,
+                                        fontSize = fontSize,
+                                        readerSpacing = readerSpacing,
+                                        readerMargin = readerMargin,
+                                        showTypography = false,
+                                        onThemeChange = { value ->
+                                            readerThemeState.value = value
+                                            pageBackground = pdfBackgroundFor(value)
+                                            pageView.setBackgroundColor(pageBackground)
+                                            appearancePrefs.edit().putString("reader_theme", value).apply()
+                                        },
+                                        onFontSizeChange = { fontSize = it; appearancePrefs.edit().putFloat("font_size", it).apply() },
+                                        onSpacingChange = { readerSpacing = it; appearancePrefs.edit().putFloat("reader_spacing", it).apply() },
+                                        onMarginChange = { readerMargin = it; appearancePrefs.edit().putFloat("reader_margin", it).apply() }
+                                    )
+                                }
+                            },
+                            confirmButton = { TextButton(onClick = { showAppearanceSettings = false }) { Text("Готово") } }
+                        )
+                    }
                 }
             }
         }
 
         bottomBar = ComposeView(this).apply {
             setContent {
-                MaterialTheme(colorScheme = lightColorScheme()) {
+                MaterialTheme(colorScheme = if (readerThemeState.value == "dark") darkColorScheme() else lightColorScheme()) {
                     com.openreader.ui.ReaderBottomBar(
                         pageIndex = pageIndexState.intValue,
                         pageCount = pageCountState.intValue,
@@ -203,6 +249,14 @@ class SimplePdfActivity : Activity() {
         })
 
         openPdf(uri)
+    }
+
+
+    private fun pdfBackgroundFor(theme: String): Int = when (theme) {
+        "dark" -> Color.rgb(24, 24, 24)
+        "sepia" -> Color.rgb(241, 227, 200)
+        "light" -> Color.WHITE
+        else -> Color.rgb(250, 247, 240)
     }
 
     private fun openPdf(uri: Uri) {
