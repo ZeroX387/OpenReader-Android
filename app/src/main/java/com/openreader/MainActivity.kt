@@ -747,7 +747,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         val readerTextStyle = TextStyle(
                             fontSize = fontSize.sp,
                             lineHeight = (fontSize * readerSpacing).sp,
-                            textAlign = if (textAlignment == "start") TextAlign.Start else TextAlign.Justify,
+                            textAlign = when (textAlignment) {
+                                "start" -> TextAlign.Start
+                                "center" -> TextAlign.Center
+                                "end" -> TextAlign.End
+                                else -> TextAlign.Justify
+                            },
                             platformStyle = PlatformTextStyle(includeFontPadding = true)
                         )
                         // Wait until the window dimensions settle (system bars, keyboard,
