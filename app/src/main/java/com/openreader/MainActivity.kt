@@ -301,7 +301,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
     val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.coerceAtLeast(320)
-    val defaultReaderMargin = (screenWidthDp * 0.13f).coerceIn(40f, 80f)
+    val defaultReaderMargin = 8f
     var languageChoice by remember { mutableStateOf(prefs.getString("language", "system") ?: "system") }
     val systemLanguage = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language
     val englishUi = (if (languageChoice == "system") systemLanguage else languageChoice) != "ru"
@@ -349,16 +349,16 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var readerSpacing by remember { mutableFloatStateOf(prefs.getFloat("reader_spacing", 1.5f)) }
     var readerMargin by remember {
         mutableFloatStateOf(run {
-            // Apply the new book-like column profile once; preserve later manual adjustments.
+            // Use the same compact page inset for every reading format.
             val profileVersion = prefs.getInt("reader_margin_profile_version", 0)
-            if (profileVersion < 2) {
+            if (profileVersion < 3) {
                 prefs.edit()
-                    .putFloat("reader_margin", defaultReaderMargin)
-                    .putInt("reader_margin_profile_version", 2)
+                    .putFloat("reader_margin", 8f)
+                    .putInt("reader_margin_profile_version", 3)
                     .apply()
-                defaultReaderMargin
+                8f
             } else {
-                prefs.getFloat("reader_margin", defaultReaderMargin).coerceIn(24f, 80f)
+                8f
             }
         })
     }
@@ -706,7 +706,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val effectiveMargin = readerMargin.coerceIn(24f, 80f)
+                        val effectiveMargin = 8f
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
@@ -768,7 +768,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         color = readerInk,
                                         textAlign = TextAlign.Justify,
                                         style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)),
-                                        modifier = Modifier.fillMaxSize().padding(horizontal = effectiveMargin.dp, vertical = 12.dp)
+                                        modifier = Modifier.fillMaxSize().padding(8.dp)
                                     )
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1146,7 +1146,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             },
                             onMarginChange = {
                                 readerMargin = it
-                                prefs.edit().putFloat("reader_margin", it).apply()
+                                prefs.edit().putFloat("reader_margin", 8f).apply()
                             }
                         )
                     }
