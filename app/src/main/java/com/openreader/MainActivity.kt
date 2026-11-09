@@ -38,6 +38,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -308,9 +310,37 @@ private fun ReaderLoadingState(ink: androidx.compose.ui.graphics.Color) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("📖", style = MaterialTheme.typography.displayLarge)
+            val transition = rememberInfiniteTransition(label = "openingBook")
+            val angle by transition.animateFloat(
+                initialValue = -12f, targetValue = 0f,
+                animationSpec = infiniteRepeatable(tween(650, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+                label = "bookAngle"
+            )
+            Text("📖", style = MaterialTheme.typography.displayLarge,
+                modifier = Modifier.graphicsLayer { rotationY = angle; scaleX = 1f + (angle + 12f) / 120f })
             Text("OpenReader", color = ink, style = MaterialTheme.typography.headlineMedium)
-            Text("Подготавливаем книгу…", color = ink, style = MaterialTheme.typography.bodyMedium)
+            Text("Открываем книгу…", color = ink, style = MaterialTheme.typography.bodyMedium)
+            CircularProgressIndicator()
+        }
+    }
+}
+
+@Composable
+private fun ClosingBookState() {
+    val transition = rememberInfiniteTransition(label = "closingBook")
+    val angle by transition.animateFloat(
+        initialValue = 0f, targetValue = 75f,
+        animationSpec = infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "closingAngle"
+    )
+    Box(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text("📖", style = MaterialTheme.typography.displayLarge,
+                modifier = Modifier.graphicsLayer { rotationY = angle })
+            Text("Закрываем книгу…", style = MaterialTheme.typography.bodyLarge)
             CircularProgressIndicator()
         }
     }
@@ -794,7 +824,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 }
             },
         ) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding)) {
+            Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize()) {
                 if (currentBook != null) {
                     val book = currentBook!!
                     val positionKey = "page_char_" + book.uri.hashCode()
@@ -1080,6 +1111,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         }
                     }
                 }
+            }
+            if (currentBookUri == null && libraryTransitioning) {
+                ClosingBookState()
+            }
             }
         }
         }
