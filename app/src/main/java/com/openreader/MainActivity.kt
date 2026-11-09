@@ -303,69 +303,6 @@ private fun pageStarts(layout: TextLayoutResult, heightPx: Int, anchor: Int): Li
 }
 
 @Composable
-private fun AnimatedBookIllustration(opening: Boolean) {
-    val transition = rememberInfiniteTransition(label = if (opening) "openingBook" else "closingBook")
-    val progress by transition.animateFloat(
-        initialValue = if (opening) 0f else 1f,
-        targetValue = if (opening) 1f else 0f,
-        animationSpec = infiniteRepeatable(
-            tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "bookOpeningProgress"
-    )
-    androidx.compose.foundation.Canvas(Modifier.width(116.dp).height(82.dp)) {
-        val bookLeft = 8.dp.toPx()
-        val bookRight = size.width - 8.dp.toPx()
-        val bookTop = 8.dp.toPx()
-        val bookBottom = size.height - 8.dp.toPx()
-        val spine = size.width / 2f
-        val pageColor = androidx.compose.ui.graphics.Color(0xFFFFF8E8)
-        val coverColor = androidx.compose.ui.graphics.Color(0xFF8B5E3C)
-        val edgeColor = androidx.compose.ui.graphics.Color(0xFF5D3A27)
-        drawRoundRect(
-            color = edgeColor,
-            topLeft = androidx.compose.ui.geometry.Offset(bookLeft, bookTop + 3.dp.toPx()),
-            size = androidx.compose.ui.geometry.Size(bookRight - bookLeft, bookBottom - bookTop),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(5.dp.toPx())
-        )
-        drawRoundRect(
-            color = pageColor,
-            topLeft = androidx.compose.ui.geometry.Offset(bookLeft + 3.dp.toPx(), bookTop + 2.dp.toPx()),
-            size = androidx.compose.ui.geometry.Size(bookRight - bookLeft - 6.dp.toPx(), bookBottom - bookTop - 5.dp.toPx()),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
-        )
-        drawLine(
-            color = androidx.compose.ui.graphics.Color(0xFFD8C8AA),
-            start = androidx.compose.ui.geometry.Offset(spine, bookTop + 4.dp.toPx()),
-            end = androidx.compose.ui.geometry.Offset(spine, bookBottom - 4.dp.toPx()),
-            strokeWidth = 1.5.dp.toPx()
-        )
-        val coverWidth = (spine - bookLeft) * (1f - progress * 0.94f)
-        drawRoundRect(
-            color = coverColor,
-            topLeft = androidx.compose.ui.geometry.Offset(spine - coverWidth, bookTop),
-            size = androidx.compose.ui.geometry.Size(coverWidth, bookBottom - bookTop),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
-        )
-        drawLine(
-            color = edgeColor,
-            start = androidx.compose.ui.geometry.Offset(spine - coverWidth + 5.dp.toPx(), bookTop + 8.dp.toPx()),
-            end = androidx.compose.ui.geometry.Offset(spine - coverWidth + 5.dp.toPx(), bookBottom - 8.dp.toPx()),
-            strokeWidth = 1.dp.toPx()
-        )
-        // A small curved page edge makes the opening/closing motion read as a book, not a wobble.
-        val pageLift = 5.dp.toPx() * kotlin.math.sin(progress * Math.PI).toFloat()
-        drawLine(
-            color = androidx.compose.ui.graphics.Color(0xFFB9A887),
-            start = androidx.compose.ui.geometry.Offset(spine + 4.dp.toPx(), bookBottom - 5.dp.toPx()),
-            end = androidx.compose.ui.geometry.Offset(bookRight - 5.dp.toPx(), bookBottom - 5.dp.toPx() - pageLift),
-            strokeWidth = 1.dp.toPx()
-        )
-    }
-}
-
-@Composable
 private fun ReaderLoadingState(ink: androidx.compose.ui.graphics.Color) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
@@ -373,10 +310,8 @@ private fun ReaderLoadingState(ink: androidx.compose.ui.graphics.Color) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            AnimatedBookIllustration(opening = true)
-            Text("OpenReader", color = ink, style = MaterialTheme.typography.headlineMedium)
-            Text("Открываем книгу…", color = ink, style = MaterialTheme.typography.bodyMedium)
-            CircularProgressIndicator()
+            Text("Открываем книгу…", color = ink, style = MaterialTheme.typography.bodyLarge)
+            LinearProgressIndicator(Modifier.width(180.dp))
         }
     }
 }
@@ -384,13 +319,22 @@ private fun ReaderLoadingState(ink: androidx.compose.ui.graphics.Color) {
 @Composable
 private fun ClosingBookState() {
     Box(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            AnimatedBookIllustration(opening = false)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             Text("Закрываем книгу…", style = MaterialTheme.typography.bodyLarge)
-            CircularProgressIndicator()
+            LinearProgressIndicator(Modifier.width(180.dp))
         }
     }
 }
