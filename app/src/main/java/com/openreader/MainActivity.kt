@@ -336,38 +336,53 @@ private val startupPhrases = listOf(
 )
 
 @Composable
-private fun LibraryLoadingIcon() {
-    val white = androidx.compose.ui.graphics.Color.White
-    androidx.compose.foundation.Canvas(Modifier.size(44.dp)) {
-        val stroke = 2.dp.toPx()
-        val corner = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
-        drawRoundRect(white, androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.12f), androidx.compose.ui.geometry.Size(size.width * 0.20f, size.height * 0.66f), corner, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-        drawRoundRect(white, androidx.compose.ui.geometry.Offset(size.width * 0.39f, size.height * 0.22f), androidx.compose.ui.geometry.Size(size.width * 0.20f, size.height * 0.56f), corner, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-        drawRoundRect(white, androidx.compose.ui.geometry.Offset(size.width * 0.66f, size.height * 0.08f), androidx.compose.ui.geometry.Size(size.width * 0.20f, size.height * 0.70f), corner, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
-        drawLine(white, androidx.compose.ui.geometry.Offset(size.width * 0.06f, size.height * 0.86f), androidx.compose.ui.geometry.Offset(size.width * 0.94f, size.height * 0.86f), strokeWidth = stroke)
-    }
-}
-
-@Composable
-private fun LibraryLoadingState(message: String) {
+private fun LibraryLoadingState(
+    message: String,
+    background: androidx.compose.ui.graphics.Color,
+    foreground: androidx.compose.ui.graphics.Color
+) {
     Box(
-        Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black)
+        Modifier.fillMaxSize().background(background)
             .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = {}),
         contentAlignment = Alignment.Center
     ) {
         Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            LibraryLoadingIcon()
-            Text(message, color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
-            LinearProgressIndicator(modifier = Modifier.width(180.dp), color = androidx.compose.ui.graphics.Color.White, trackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.24f))
+            LibraryLoadingIcon(foreground)
+            Text(message, color = foreground, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+            LinearProgressIndicator(
+                modifier = Modifier.width(180.dp),
+                color = foreground,
+                trackColor = foreground.copy(alpha = 0.22f)
+            )
         }
     }
 }
 
 @Composable
-private fun ReaderLoadingState(message: String) = LibraryLoadingState(message)
+private fun LibraryLoadingIcon(color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.White) {
+    androidx.compose.foundation.Canvas(Modifier.size(44.dp)) {
+        val stroke = 2.dp.toPx()
+        val corner = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+        drawRoundRect(color, androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.12f), androidx.compose.ui.geometry.Size(size.width * 0.20f, size.height * 0.66f), corner, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        drawRoundRect(color, androidx.compose.ui.geometry.Offset(size.width * 0.39f, size.height * 0.22f), androidx.compose.ui.geometry.Size(size.width * 0.20f, size.height * 0.56f), corner, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        drawRoundRect(color, androidx.compose.ui.geometry.Offset(size.width * 0.66f, size.height * 0.08f), androidx.compose.ui.geometry.Size(size.width * 0.20f, size.height * 0.70f), corner, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        drawLine(color, androidx.compose.ui.geometry.Offset(size.width * 0.06f, size.height * 0.86f), androidx.compose.ui.geometry.Offset(size.width * 0.94f, size.height * 0.86f), strokeWidth = stroke)
+    }
+}
 
 @Composable
-private fun ClosingBookState(message: String) = LibraryLoadingState(message)
+private fun ReaderLoadingState(
+    message: String,
+    background: androidx.compose.ui.graphics.Color,
+    foreground: androidx.compose.ui.graphics.Color
+) = LibraryLoadingState(message, background, foreground)
+
+@Composable
+private fun ClosingBookState(
+    message: String,
+    background: androidx.compose.ui.graphics.Color,
+    foreground: androidx.compose.ui.graphics.Color
+) = LibraryLoadingState(message, background, foreground)
 
 // Style chapter titles without modifying the source string or saved character offsets.
 private val chapterTitlePattern = Regex("(?im)^\\s*(?:глава\\b[^\\n]{0,65}|chapter\\b[^\\n]{0,65})\\s*$")
@@ -513,9 +528,13 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     }
     val readerInk = when (readerTheme) {
         "dark" -> androidx.compose.ui.graphics.Color.White
-        "sepia" -> androidx.compose.ui.graphics.Color.Black
+        "sepia" -> androidx.compose.ui.graphics.Color(0xFF302719)
         else -> androidx.compose.ui.graphics.Color(0xFF242424)
     }
+    val appLoadingBackground = if (isDark) androidx.compose.ui.graphics.Color(0xFF202124)
+        else androidx.compose.ui.graphics.Color(0xFFF5F2EA)
+    val appLoadingForeground = if (isDark) androidx.compose.ui.graphics.Color(0xFFF2F0EB)
+        else androidx.compose.ui.graphics.Color(0xFF292722)
     var themeChoice by remember { mutableStateOf(prefs.getString("theme", "system") ?: "system") }
     val isDark = when (themeChoice) {
         "dark" -> true
@@ -843,7 +862,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         ) {
         Scaffold(
             topBar = {
-                if (currentBook == null && booksLoaded) {
+                if (currentBook == null && booksLoaded && !libraryTransitioning) {
                     TopAppBar(
                         title = { Text("OpenReader beta") },
                         navigationIcon = {
@@ -970,7 +989,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
                                     )
                                 } else {
-                                    ReaderLoadingState(openingMessage)
+                                    ReaderLoadingState(openingMessage, readerBackground, readerInk)
                                 }
                             }
                             if (showControls) {
@@ -1160,10 +1179,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 }
             }
             if (currentBookUri == null && libraryTransitioning) {
-                ClosingBookState(closingMessage)
+                ClosingBookState(closingMessage, appLoadingBackground, appLoadingForeground)
             }
             if (currentBookUri == null && !booksLoaded) {
-                LibraryLoadingState(startupMessage)
+                LibraryLoadingState(startupMessage, appLoadingBackground, appLoadingForeground)
             }
             }
         }
