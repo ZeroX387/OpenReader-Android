@@ -363,8 +363,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         }
         onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
     }
-    var content by remember { mutableStateOf("") }
-    var loadedBookUri by remember { mutableStateOf<String?>(null) }
+    var content by remember(currentBookUri) { mutableStateOf(currentBookUri?.let { readCachedBookText(context, it) } ?: "") }
+    var loadedBookUri by remember(currentBookUri) { mutableStateOf(currentBookUri?.takeIf { readCachedBookText(context, it) != null }) }
     var error by remember { mutableStateOf<String?>(null) }
     var editingBook by remember { mutableStateOf<LocalBook?>(null) }
     var editedTitle by remember { mutableStateOf("") }
@@ -514,11 +514,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
     LaunchedEffect(currentBookUri) {
         val book = books.firstOrNull { it.uri == currentBookUri }
-        loadedBookUri = null
         if (book == null) {
             content = ""
-        } else {
-            content = ""
+            loadedBookUri = null
+        } else if (loadedBookUri != book.uri) {
             try {
                 val loaded = withContext(Dispatchers.IO) {
                     val cachedText = readCachedBookText(context, book.uri)
@@ -752,11 +751,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         // Keep pagination width identical to the actual 18 dp text insets.
-                        val effectiveMargin = 30f
+                        val effectiveMargin = 32f
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
-                        val heightPx = with(density) { (maxHeight - 40.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 38.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
                         val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
                             produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx) {
@@ -814,7 +813,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         color = readerInk,
                                         textAlign = TextAlign.Justify,
                                         style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)),
-                                        modifier = Modifier.fillMaxSize().padding(start = 30.dp, top = 32.dp, end = 30.dp, bottom = 8.dp)
+                                        modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 6.dp)
                                     )
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
