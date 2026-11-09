@@ -126,3 +126,100 @@ fun ReaderBottomBar(
         }
     }
 }
+
+
+/** Shared appearance controls used by every reader format. */
+@Composable
+fun ReaderAppearanceSettings(
+    readerTheme: String,
+    fontSize: Float,
+    readerSpacing: Float,
+    readerMargin: Float,
+    onThemeChange: (String) -> Unit,
+    onFontSizeChange: (Float) -> Unit,
+    onSpacingChange: (Float) -> Unit,
+    onMarginChange: (Float) -> Unit,
+    showTypography: Boolean = true
+) {
+    val pageBackground = when (readerTheme) {
+        "dark" -> androidx.compose.ui.graphics.Color(0xFF181818)
+        "sepia" -> androidx.compose.ui.graphics.Color(0xFFF1E3C8)
+        "light" -> androidx.compose.ui.graphics.Color.White
+        else -> androidx.compose.ui.graphics.Color(0xFFFAF7F0)
+    }
+    val pageInk = if (readerTheme == "dark") androidx.compose.ui.graphics.Color.White
+        else androidx.compose.ui.graphics.Color(0xFF242424)
+
+    androidx.compose.foundation.layout.Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("Цвет страниц", style = MaterialTheme.typography.titleSmall)
+        listOf("paper" to "Бумажный", "light" to "Белый", "sepia" to "Сепия", "dark" to "Тёмный").forEach { (value, label) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.RadioButton(
+                    selected = readerTheme == value,
+                    onClick = { onThemeChange(value) }
+                )
+                Text(label, modifier = Modifier.weight(1f).then(Modifier.padding(vertical = 4.dp))
+                    .background(pageBackground.copy(alpha = if (readerTheme == value) 0.18f else 0f))
+                    .padding(4.dp)
+                    .clickable { onThemeChange(value) })
+            }
+        }
+        if (showTypography) {
+            Text("Размер шрифта: ${fontSize.toInt()} sp")
+            androidx.compose.material3.Slider(
+                value = fontSize,
+                onValueChange = onFontSizeChange,
+                valueRange = 12f..32f,
+                steps = 19
+            )
+            Text("Межстрочный интервал: ${String.format(java.util.Locale.US, "%.2f", readerSpacing)}")
+            androidx.compose.material3.Slider(
+                value = readerSpacing,
+                onValueChange = onSpacingChange,
+                valueRange = 1.1f..2.0f
+            )
+            Text("Предпросмотр", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Однажды в студёную зимнюю пору\\nЯ из лесу вышел; был сильный мороз.\\nИдёт себе лесом, глядит — поднимается солнце.",
+                fontSize = fontSize.sp,
+                lineHeight = (fontSize * readerSpacing).sp,
+                color = pageInk,
+                modifier = Modifier.fillMaxWidth().background(pageBackground).padding(12.dp)
+            )
+            androidx.compose.material3.TextButton(onClick = {
+                onFontSizeChange(19f)
+                onSpacingChange(1.5f)
+            }) { Text("Вернуть стандарт: 19 sp / 1,5") }
+            Text("Боковые поля: ${readerMargin.coerceIn(16f, 40f).toInt()} dp")
+            Text("Слева и справа одинаковые. Сверху и снизу — по 12 dp.", style = MaterialTheme.typography.bodySmall)
+            androidx.compose.foundation.layout.Box(
+                Modifier.fillMaxWidth().background(pageBackground)
+                    .padding(horizontal = readerMargin.coerceIn(16f, 40f).dp, vertical = 12.dp)
+            ) {
+                Text(
+                    "Это пример страницы книги. Поля по бокам меняются сразу, а текст остаётся внутри книжной области.",
+                    fontSize = 14.sp,
+                    color = pageInk,
+                    lineHeight = 21.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Justify
+                )
+            }
+            androidx.compose.material3.Slider(
+                value = readerMargin.coerceIn(16f, 40f),
+                onValueChange = onMarginChange,
+                valueRange = 16f..40f
+            )
+            androidx.compose.material3.TextButton(onClick = { onMarginChange(24f) }) {
+                Text("Стандартные поля")
+            }
+        } else {
+            Text(
+                "Для PDF размер и расположение текста определяются самим документом. Его масштаб меняется жестом увеличения.",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
