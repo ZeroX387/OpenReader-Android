@@ -80,8 +80,8 @@ class MainActivity : ComponentActivity() {
             android.content.res.Configuration.UI_MODE_NIGHT_YES
         setTheme(
             if (themePreference == "dark" || (themePreference == "system" && systemNight))
-                android.R.style.Theme_Material_NoActionBar
-            else android.R.style.Theme_Material_Light_NoActionBar
+                R.style.OpenReaderTheme_Dark
+            else R.style.OpenReaderTheme_Light
         )
         super.onCreate(savedInstanceState)
         acceptIntent(intent)
