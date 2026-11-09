@@ -1102,56 +1102,31 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 onDismissRequest = { showReaderSettings = false },
                 title = { Text("Оформление книги") },
                 text = {
-                    Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Цвет страниц")
-                        listOf("paper" to "Бумажный", "light" to "Белый", "sepia" to "Сепия", "dark" to "Тёмный").forEach { (v, label) ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(selected = readerTheme == v, onClick = {
-                                    readerTheme = v
-                                    prefs.edit().putString("reader_theme", v).apply()
-                                })
-                                Text(label, modifier = Modifier.clickable {
-                                    readerTheme = v
-                                    prefs.edit().putString("reader_theme", v).apply()
-                                })
+                    Column(
+                        Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())
+                    ) {
+                        com.openreader.ui.ReaderAppearanceSettings(
+                            readerTheme = readerTheme,
+                            fontSize = fontSize,
+                            readerSpacing = readerSpacing,
+                            readerMargin = readerMargin,
+                            onThemeChange = {
+                                readerTheme = it
+                                prefs.edit().putString("reader_theme", it).apply()
+                            },
+                            onFontSizeChange = {
+                                fontSize = it
+                                prefs.edit().putFloat("font_size", it).apply()
+                            },
+                            onSpacingChange = {
+                                readerSpacing = it
+                                prefs.edit().putFloat("reader_spacing", it).apply()
+                            },
+                            onMarginChange = {
+                                readerMargin = it
+                                prefs.edit().putFloat("reader_margin", it).apply()
                             }
-                        }
-                        Text("Размер шрифта: ${fontSize.toInt()} sp")
-                        Slider(value = fontSize, onValueChange = {
-                            fontSize = it
-                            prefs.edit().putFloat("font_size", it).apply()
-                        }, valueRange = 12f..32f, steps = 19)
-                        Text("Межстрочный интервал: ${String.format(java.util.Locale.US, "%.2f", readerSpacing)}")
-                        Slider(value = readerSpacing, onValueChange = {
-                            readerSpacing = it
-                            prefs.edit().putFloat("reader_spacing", it).apply()
-                        }, valueRange = 1.1f..2.0f)
-                        Text("Предпросмотр", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "Однажды в студёную зимнюю пору\nЯ из лесу вышел; был сильный мороз.\nИдёт себе лесом, глядит — поднимается солнце.",
-                            fontSize = fontSize.sp,
-                            lineHeight = (fontSize * readerSpacing).sp,
-                            color = readerInk,
-                            modifier = Modifier.fillMaxWidth().background(readerBackground).padding(12.dp)
                         )
-                        TextButton(onClick = {
-                            fontSize = 19f
-                            readerSpacing = 1.5f
-                            prefs.edit().putFloat("font_size", fontSize).putFloat("reader_spacing", readerSpacing).apply()
-                        }) { Text("Вернуть стандарт: 19 sp / 1,5") }
-                        Text("Боковые поля: ${readerMargin.coerceIn(16f, 40f).toInt()} dp")
-                        Text("Слева и справа одинаковые. Сверху и снизу — по 12 dp.", style = MaterialTheme.typography.bodySmall)
-                        Box(Modifier.fillMaxWidth().background(readerBackground).padding(horizontal = readerMargin.coerceIn(16f, 40f).dp, vertical = 12.dp)) {
-                            Text("Это пример страницы книги. Поля по бокам меняются сразу, а текст остаётся внутри книжной области.", fontSize = 14.sp, color = readerInk, lineHeight = 21.sp, textAlign = TextAlign.Justify)
-                        }
-                        Slider(value = readerMargin.coerceIn(16f, 40f), onValueChange = {
-                            readerMargin = it
-                            prefs.edit().putFloat("reader_margin", it).apply()
-                        }, valueRange = 16f..40f)
-                        TextButton(onClick = {
-                            readerMargin = 24f
-                            prefs.edit().putFloat("reader_margin", 24f).apply()
-                        }) { Text("Стандартные поля") }
                     }
                 },
                 confirmButton = { TextButton(onClick = { showReaderSettings = false }) { Text("Готово") } }
