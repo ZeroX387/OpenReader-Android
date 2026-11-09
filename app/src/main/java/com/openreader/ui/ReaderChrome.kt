@@ -205,10 +205,10 @@ fun ReaderAppearanceSettings(
             androidx.compose.material3.TextButton(onClick = { onFontSizeChange(19f); onSpacingChange(1.5f) }) {
                 Text("Вернуть стандарт: 19 sp / 1,5")
             }
-            Text("Отступы страницы: 18 dp сверху и по бокам, 8 dp снизу")
-            Text("Чуть больше пространства сверху и по бокам, меньше пустоты снизу.", style = MaterialTheme.typography.bodySmall)
+            Text("Отступы страницы: 30 dp по бокам, 32 dp сверху, 8 dp снизу")
+            Text("Одинаковые отступы для всех форматов чтения.", style = MaterialTheme.typography.bodySmall)
             androidx.compose.foundation.layout.Box(
-                Modifier.fillMaxWidth().background(pageBackground).padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 8.dp)
+                Modifier.fillMaxWidth().background(pageBackground).padding(start = 30.dp, top = 32.dp, end = 30.dp, bottom = 8.dp)
             ) {
                 Text(
                     "Это пример страницы книги с едиными компактными отступами.",
