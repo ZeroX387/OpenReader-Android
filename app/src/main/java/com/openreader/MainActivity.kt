@@ -368,8 +368,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         }
         onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
     }
-    var content by remember(currentBookUri) { mutableStateOf(currentBookUri?.let { readCachedBookText(context, it) } ?: "") }
-    var loadedBookUri by remember(currentBookUri) { mutableStateOf(currentBookUri?.takeIf { readCachedBookText(context, it) != null }) }
+    // Never read the text cache while composing: books can be large, and disk I/O
+    // here blocks the UI thread. The loader below checks the cache on Dispatchers.IO.
+    var content by remember(currentBookUri) { mutableStateOf("") }
+    var loadedBookUri by remember(currentBookUri) { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var editingBook by remember { mutableStateOf<LocalBook?>(null) }
     var editedTitle by remember { mutableStateOf("") }
@@ -404,7 +406,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> androidx.compose.ui.graphics.Color.White
         else -> androidx.compose.ui.graphics.Color(0xFFFAF7F0)
     }
-    val readerInk = if (readerTheme == "dark") androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color(0xFF242424)
+    val readerInk = when (readerTheme) {
+        "dark" -> androidx.compose.ui.graphics.Color.White
+        "sepia" -> androidx.compose.ui.graphics.Color.Black
+        else -> androidx.compose.ui.graphics.Color(0xFF242424)
+    }
     var themeChoice by remember { mutableStateOf(prefs.getString("theme", "system") ?: "system") }
     val isDark = when (themeChoice) {
         "dark" -> true
