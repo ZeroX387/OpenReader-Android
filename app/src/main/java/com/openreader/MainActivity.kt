@@ -349,18 +349,13 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var bookmarkPosition by remember { mutableIntStateOf(0) }
     var quoteEditor by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
-    // Keep the library's exact vertical offset while the reader screen is shown.
+    // Keep tracking the library offset even while the reader screen is displayed.
+    // ScrollState itself is saveable, so avoid a second restore that can cause a small jump.
     val libraryScrollState = rememberScrollState()
     var savedLibraryScrollPosition by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(currentBookUri) {
-        if (currentBookUri == null) {
-            // Wait for the library and its app bar to finish measuring before restoring.
-            withFrameNanos { }
-            withFrameNanos { }
-            libraryScrollState.scrollTo(savedLibraryScrollPosition)
-            snapshotFlow { libraryScrollState.value }.collect { offset ->
-                savedLibraryScrollPosition = offset
-            }
+    LaunchedEffect(libraryScrollState) {
+        snapshotFlow { libraryScrollState.value }.collect { offset ->
+            savedLibraryScrollPosition = offset
         }
     }
     var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Добавление") ?: "Добавление") }
