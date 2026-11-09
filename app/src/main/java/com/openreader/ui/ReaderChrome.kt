@@ -12,6 +12,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,6 +89,7 @@ fun ReaderBottomBar(
 ) {
     val safeCount = pageCount.coerceAtLeast(0)
     val safeIndex = if (safeCount > 0) pageIndex.coerceIn(0, safeCount - 1) else 0
+    val sliderValue = remember(safeIndex, safeCount) { mutableFloatStateOf(safeIndex.toFloat()) }
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
@@ -114,8 +117,9 @@ fun ReaderBottomBar(
             }
             if (safeCount > 1) {
                 androidx.compose.material3.Slider(
-                    value = safeIndex.toFloat(),
-                    onValueChange = { onSelectPage(it.toInt().coerceIn(0, safeCount - 1)) },
+                    value = sliderValue.floatValue,
+                    onValueChange = { sliderValue.floatValue = it },
+                    onValueChangeFinished = { onSelectPage(sliderValue.floatValue.toInt().coerceIn(0, safeCount - 1)) },
                     valueRange = 0f..(safeCount - 1).toFloat()
                 )
             }
