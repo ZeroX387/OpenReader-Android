@@ -300,6 +300,8 @@ private fun styledPage(pageText: String) = buildAnnotatedString {
 private fun OpenReaderApp(externalBook: Uri? = null) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
+    val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.coerceAtLeast(320)
+    val defaultReaderMargin = (screenWidthDp * 0.095f).coerceIn(24f, 64f)
     var languageChoice by remember { mutableStateOf(prefs.getString("language", "system") ?: "system") }
     val systemLanguage = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language
     val englishUi = (if (languageChoice == "system") systemLanguage else languageChoice) != "ru"
@@ -345,7 +347,21 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var showReaderSettings by remember { mutableStateOf(false) }
     var readerTheme by remember { mutableStateOf(prefs.getString("reader_theme", "paper") ?: "paper") }
     var readerSpacing by remember { mutableFloatStateOf(prefs.getFloat("reader_spacing", 1.5f)) }
-    var readerMargin by remember { mutableFloatStateOf(prefs.getFloat("reader_margin", 24f)) }
+    var readerMargin by remember {
+        mutableFloatStateOf(run {
+            // Migrate the old fixed 24dp default to a screen-proportional book margin once.
+            val initialized = prefs.getBoolean("reader_margin_adaptive_initialized", false)
+            if (!initialized) {
+                prefs.edit()
+                    .putFloat("reader_margin", defaultReaderMargin)
+                    .putBoolean("reader_margin_adaptive_initialized", true)
+                    .apply()
+                defaultReaderMargin
+            } else {
+                prefs.getFloat("reader_margin", defaultReaderMargin)
+            }
+        })
+    }
     val readerBackground = when (readerTheme) {
         "dark" -> androidx.compose.ui.graphics.Color(0xFF181818)
         "sepia" -> androidx.compose.ui.graphics.Color(0xFFF1E3C8)
@@ -359,7 +375,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
-    val appVersion = "0.4.16-beta"
+    val appVersion = "0.4.17-beta"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
     var updateCheck by remember { mutableIntStateOf(0) }
@@ -411,7 +427,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "0.4.13-beta" to "Начата общая архитектура чтения: EPUB, FB2 и текстовые файлы теперь передают содержимое через единый ReadingDocument.",
         "0.4.14-beta" to "Исправлены разрывы слов отдельными страницами, добавлен предпросмотр симметричных боковых полей и ограничение их размеров.",
         "0.4.15-beta" to "Добавлен запас высоты для нижних элементов букв и включены шрифтовые отступы, чтобы текст не обрезался при минимальном интервале.",
-        "0.4.16-beta" to "Кнопка Назад на телефоне возвращает из книги в библиотеку. Боковые поля: 16–40 dp, стандарт — 24 dp."
+        "0.4.16-beta" to "Кнопка Назад на телефоне возвращает из книги в библиотеку. Боковые поля: 16–40 dp, стандарт — 24 dp.",
+        "0.4.17-beta" to "Адаптивные боковые поля: начальная ширина книжной области подбирается по ширине экрана, как на образце."
     )
     // Include every release since the last version the reader actually opened.
     fun versionParts(version: String) = version.removePrefix("v").substringBefore("-").split(".").map { it.toIntOrNull() ?: 0 }
@@ -688,7 +705,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val effectiveMargin = readerMargin.coerceIn(16f, 40f)
+                        val effectiveMargin = readerMargin.coerceIn(24f, 64f)
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
@@ -1112,6 +1129,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             fontSize = fontSize,
                             readerSpacing = readerSpacing,
                             readerMargin = readerMargin,
+                            defaultMargin = defaultReaderMargin,
                             onThemeChange = {
                                 readerTheme = it
                                 prefs.edit().putString("reader_theme", it).apply()
