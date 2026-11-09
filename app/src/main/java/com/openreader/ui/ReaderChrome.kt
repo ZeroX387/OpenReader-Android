@@ -205,19 +205,17 @@ fun ReaderAppearanceSettings(
             androidx.compose.material3.TextButton(onClick = { onFontSizeChange(19f); onSpacingChange(1.5f) }) {
                 Text("Вернуть стандарт: 19 sp / 1,5")
             }
-            Text("Боковые поля: ${readerMargin.coerceIn(24f, 80f).toInt()} dp")
-            Text("Слева и справа одинаковые. Сверху и снизу — по 12 dp.", style = MaterialTheme.typography.bodySmall)
+            Text("Отступы страницы: 8 dp")
+            Text("Одинаковые отступы со всех сторон во всех форматах.", style = MaterialTheme.typography.bodySmall)
             androidx.compose.foundation.layout.Box(
-                Modifier.fillMaxWidth().background(pageBackground).padding(horizontal = readerMargin.coerceIn(24f, 80f).dp, vertical = 12.dp)
+                Modifier.fillMaxWidth().background(pageBackground).padding(8.dp)
             ) {
                 Text(
-                    "Это пример страницы книги. Поля по бокам меняются сразу, а текст остаётся внутри книжной области.",
+                    "Это пример страницы книги с едиными компактными отступами.",
                     fontSize = 14.sp, color = pageInk, lineHeight = 21.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Justify
                 )
             }
-            androidx.compose.material3.Slider(value = readerMargin.coerceIn(24f, 80f), onValueChange = onMarginChange, valueRange = 24f..80f)
-            androidx.compose.material3.TextButton(onClick = { onMarginChange(defaultMargin) }) { Text("Стандартные поля") }
         } else {
             Text(
                 "Для PDF размер и расположение текста определяются самим документом. Его масштаб меняется жестом увеличения.",
