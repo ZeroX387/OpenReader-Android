@@ -299,6 +299,22 @@ private fun pageStarts(layout: TextLayoutResult, heightPx: Int, anchor: Int): Li
     return lineStarts.map { layout.getLineStart(it) }.distinct().sorted()
 }
 
+@Composable
+private fun ReaderLoadingState() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("📖", style = MaterialTheme.typography.displayLarge)
+            Text("OpenReader", style = MaterialTheme.typography.headlineMedium)
+            Text("Подготавливаем книгу…", style = MaterialTheme.typography.bodyMedium)
+            CircularProgressIndicator()
+        }
+    }
+}
+
 // Style chapter titles without modifying the source string or saved character offsets.
 private val chapterTitlePattern = Regex("(?im)^\\s*(?:глава\\b[^\\n]{0,65}|chapter\\b[^\\n]{0,65})\\s*$")
 
@@ -821,35 +837,17 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         }
                                     }
                             ) {
-                                if (loadedBookUri == book.uri && content.isNotEmpty()) {
-                                    if (readyStarts != null) {
-                                        val pageStart = readyStarts.getOrNull(page)?.coerceIn(0, content.length) ?: 0
-                                        val pageEnd = (readyStarts.getOrNull(page + 1) ?: content.length).coerceIn(pageStart, content.length)
-                                        Text(
-                                            styledPage(content.substring(pageStart, pageEnd)),
-                                            color = readerInk,
-                                            style = readerTextStyle,
-                                            modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
-                                        )
-                                    } else {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.align(Alignment.Center).size(24.dp),
-                                            color = readerInk,
-                                            strokeWidth = 2.dp
-                                        )
-                                    }
+                                if (loadedBookUri == book.uri && content.isNotEmpty() && readyStarts != null) {
+                                    val pageStart = readyStarts.getOrNull(page)?.coerceIn(0, content.length) ?: 0
+                                    val pageEnd = (readyStarts.getOrNull(page + 1) ?: content.length).coerceIn(pageStart, content.length)
+                                    Text(
+                                        styledPage(content.substring(pageStart, pageEnd)),
+                                        color = readerInk,
+                                        style = readerTextStyle,
+                                        modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
+                                    )
                                 } else {
-                                    Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                        Text("📖", style = MaterialTheme.typography.displayLarge)
-                                        Text("OpenReader", style = MaterialTheme.typography.headlineMedium, color = readerInk)
-                                        if (loadedBookUri == book.uri && content.isEmpty()) {
-                                            Text("Не удалось прочитать документ", color = readerInk)
-                                            TextButton(onClick = { currentBookUri = null }) { Text("Вернуться в библиотеку") }
-                                        } else {
-                                            Text("Подготавливаем книгу…", style = MaterialTheme.typography.bodyMedium, color = readerInk)
-                                            CircularProgressIndicator()
-                                        }
-                                    }
+                                    ReaderLoadingState()
                                 }
                             }
                             if (showControls) {
