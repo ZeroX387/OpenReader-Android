@@ -73,3 +73,52 @@ fun ReaderTopBar(
         }
     }
 }
+
+
+/** Shared page navigation for reflowable and fixed-layout readers. */
+@Composable
+fun ReaderBottomBar(
+    pageIndex: Int,
+    pageCount: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onSelectPage: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val safeCount = pageCount.coerceAtLeast(0)
+    val safeIndex = if (safeCount > 0) pageIndex.coerceIn(0, safeCount - 1) else 0
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+        shadowElevation = 4.dp
+    ) {
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        ) {
+            androidx.compose.foundation.layout.Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                TextButton(onClick = onPrevious, enabled = safeCount > 0 && safeIndex > 0) {
+                    Text("‹ Назад")
+                }
+                Text(
+                    if (safeCount > 0) "${safeIndex + 1} / $safeCount" else "Загрузка книги…",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = onNext, enabled = safeCount > 0 && safeIndex < safeCount - 1) {
+                    Text("Вперёд ›")
+                }
+            }
+            if (safeCount > 1) {
+                androidx.compose.material3.Slider(
+                    value = safeIndex.toFloat(),
+                    onValueChange = { onSelectPage(it.toInt().coerceIn(0, safeCount - 1)) },
+                    valueRange = 0f..(safeCount - 1).toFloat()
+                )
+            }
+        }
+    }
+}
