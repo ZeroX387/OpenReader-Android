@@ -349,6 +349,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var bookmarkPosition by remember { mutableIntStateOf(0) }
     var quoteEditor by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
+    // Keep the library's vertical position while opening a book and returning to it.
+    val libraryScrollState = rememberScrollState()
     var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Добавление") ?: "Добавление") }
     var sortExpanded by remember { mutableStateOf(false) }
     var newCollection by remember { mutableStateOf("") }
@@ -910,7 +912,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         }
                     }
                 } else {
-                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.fillMaxSize().verticalScroll(libraryScrollState).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
                             listOf("Моя библиотека", "Избранное", "Папки и коллекции", "Прочитанные книги")[selectedTab],
                             style = MaterialTheme.typography.headlineMedium
