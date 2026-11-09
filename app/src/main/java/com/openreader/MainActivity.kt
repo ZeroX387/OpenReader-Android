@@ -148,6 +148,35 @@ private fun readTxt(context: Context, uri: Uri): String {
     }
 }
 
+private fun bookTextCacheFile(context: Context, bookUri: String): java.io.File {
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(bookUri.toByteArray(Charsets.UTF_8))
+        .joinToString("") { byte -> "%02x".format(byte) }
+    val directory = java.io.File(context.filesDir, "reader_text_cache").apply { mkdirs() }
+    return java.io.File(directory, "$digest.txt")
+}
+
+private fun readCachedBookText(context: Context, bookUri: String): String? = try {
+    val file = bookTextCacheFile(context, bookUri)
+    if (file.isFile && file.length() > 0L) file.readText(Charsets.UTF_8) else null
+} catch (_: Exception) {
+    null
+}
+
+private fun saveCachedBookText(context: Context, bookUri: String, text: String) {
+    try {
+        val target = bookTextCacheFile(context, bookUri)
+        val temporary = java.io.File(target.parentFile, target.name + ".tmp")
+        temporary.writeText(text, Charsets.UTF_8)
+        if (!temporary.renameTo(target)) {
+            target.writeText(text, Charsets.UTF_8)
+            temporary.delete()
+        }
+    } catch (_: Exception) {
+        // The reader must remain usable even if the optional text cache cannot be written.
+    }
+}
+
 private data class Fb2Document(val title: String, val authors: String, val annotation: String, val body: String)
 
 private fun readFb2(context: Context, uri: Uri): Fb2Document {
@@ -321,7 +350,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var collectionDialog by remember { mutableStateOf(false) }
     var collectionTarget by remember { mutableStateOf<LocalBook?>(null) }
     var collectionName by remember { mutableStateOf("") }
-    var currentBookUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var currentBookUri by rememberSaveable { mutableStateOf(prefs.getString("active_book_uri", null)) }
     val currentBook = books.firstOrNull { it.uri == currentBookUri }
     DisposableEffect(currentBookUri) {
         val activity = context as? ComponentActivity
@@ -476,6 +505,14 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     }
 
     LaunchedEffect(currentBookUri) {
+        if (currentBookUri.isNullOrBlank()) {
+            prefs.edit().remove("active_book_uri").apply()
+        } else {
+            prefs.edit().putString("active_book_uri", currentBookUri).apply()
+        }
+    }
+
+    LaunchedEffect(currentBookUri) {
         val book = books.firstOrNull { it.uri == currentBookUri }
         loadedBookUri = null
         if (book == null) {
@@ -484,7 +521,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
             content = ""
             try {
                 val loaded = withContext(Dispatchers.IO) {
-                    if (book.format == "epub") {
+                    val cachedText = readCachedBookText(context, book.uri)
+                    if (cachedText != null) {
+                        ReadingDocument(cachedText, sourceFormat = book.format)
+                    } else {
+                    val parsed = if (book.format == "epub") {
                         val doc = readEpub(context, Uri.parse(book.uri))
                         ReadingDocument(doc.text, doc.title, doc.author, "epub")
                     } else if (book.format == "pdf") {
@@ -501,6 +542,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         val text = (if (doc.annotation.isNotBlank()) "Аннотация\n\n${cleanBookText(doc.annotation)}\n\n" else "") + doc.body
                         ReadingDocument(text, doc.title, doc.authors, "fb2")
                     } else ReadingDocument(cleanBookText(readTxt(context, Uri.parse(book.uri))), sourceFormat = book.format)
+                    saveCachedBookText(context, book.uri, parsed.text)
+                    parsed
+                    }
                 }
                 content = loaded.text
                 val loadedIndex = books.indexOfFirst { it.uri == book.uri }
