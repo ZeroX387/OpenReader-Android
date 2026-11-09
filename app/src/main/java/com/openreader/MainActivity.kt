@@ -1014,7 +1014,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         }
                                     }
                             ) {
-                                if (loadedBookUri == book.uri && content.isNotEmpty()) {
+                                if (loadedBookUri == book.uri && content.isNotEmpty() && displayStarts != null) {
                                     // Keep the existing book visible while pagination is recalculated
                                     // after a dialog/keyboard changes the available viewport.
                                     val pageStart = (displayStarts?.getOrNull(page) ?: 0).coerceIn(0, content.length)
