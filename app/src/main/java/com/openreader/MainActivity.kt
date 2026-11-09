@@ -531,16 +531,16 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         "sepia" -> androidx.compose.ui.graphics.Color(0xFF302719)
         else -> androidx.compose.ui.graphics.Color(0xFF242424)
     }
-    val appLoadingBackground = if (isDark) androidx.compose.ui.graphics.Color(0xFF202124)
-        else androidx.compose.ui.graphics.Color(0xFFF5F2EA)
-    val appLoadingForeground = if (isDark) androidx.compose.ui.graphics.Color(0xFFF2F0EB)
-        else androidx.compose.ui.graphics.Color(0xFF292722)
     var themeChoice by remember { mutableStateOf(prefs.getString("theme", "system") ?: "system") }
     val isDark = when (themeChoice) {
         "dark" -> true
         "light" -> false
         else -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
     }
+    val appLoadingBackground = if (isDark) androidx.compose.ui.graphics.Color(0xFF202124)
+        else androidx.compose.ui.graphics.Color(0xFFF5F2EA)
+    val appLoadingForeground = if (isDark) androidx.compose.ui.graphics.Color(0xFFF2F0EB)
+        else androidx.compose.ui.graphics.Color(0xFF292722)
     val appVersion = "0.4.18-beta"
     var availableUpdate by remember { mutableStateOf<String?>(null) }
     var updateStatus by remember { mutableStateOf("Ещё не проверяли") }
