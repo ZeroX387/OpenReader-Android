@@ -100,6 +100,20 @@ private val coverBitmapCache = object : android.util.LruCache<String, android.gr
     override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
 }
 
+private object ReaderSessionCache {
+    @Volatile private var cachedUri: String? = null
+    @Volatile private var cachedText: String = ""
+
+    fun get(uri: String?): String? =
+        if (uri != null && cachedUri == uri && cachedText.isNotEmpty()) cachedText else null
+
+    fun put(uri: String?, text: String) {
+        if (uri == null || text.isEmpty()) return
+        cachedText = text
+        cachedUri = uri
+    }
+}
+
 private fun loadBooks(context: Context): List<LocalBook> {
     val prefs = context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
     val saved = prefs.getString("books", "[]") ?: "[]"
@@ -446,7 +460,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var collectionDialog by remember { mutableStateOf(false) }
     var collectionTarget by remember { mutableStateOf<LocalBook?>(null) }
     var collectionName by remember { mutableStateOf("") }
-    var currentBookUri by remember { mutableStateOf(prefs.getString("active_book_uri", null)) }
+    var currentBookUri by rememberSaveable { mutableStateOf(prefs.getString("active_book_uri", null)) }
     LaunchedEffect(libraryScrollState, currentBookUri, libraryTransitioning) {
         if (!libraryTransitioning && currentBookUri == null) {
             snapshotFlow { libraryScrollState.value }.collect { offset ->
@@ -492,8 +506,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     // Restore the cached text immediately so reopening an already-read book does not
     // show an unnecessary loading delay. Read the cache only once per selected URI.
     // Disk cache reads happen on IO, never while composing the first frame.
-    var content by remember(currentBookUri) { mutableStateOf("") }
-    var loadedBookUri by remember(currentBookUri) { mutableStateOf<String?>(null) }
+    var content by remember(currentBookUri) {
+        mutableStateOf(ReaderSessionCache.get(currentBookUri) ?: "")
+    }
+    var loadedBookUri by remember(currentBookUri) {
+        mutableStateOf(if (ReaderSessionCache.get(currentBookUri) != null) currentBookUri else null)
+    }
     var error by remember { mutableStateOf<String?>(null) }
     var editingBook by remember { mutableStateOf<LocalBook?>(null) }
     var editedTitle by remember { mutableStateOf("") }
@@ -697,6 +715,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 // Apply the private correction overlay before the first rendered frame.
                 // The disk text cache remains the untouched imported text.
                 content = applyWordCorrections(context, book.uri, loaded.text)
+                ReaderSessionCache.put(book.uri, content)
                 val loadedIndex = books.indexOfFirst { it.uri == book.uri }
                 if (loadedIndex >= 0 && books[loadedIndex].length != loaded.text.length) {
                     books[loadedIndex] = books[loadedIndex].copy(length = loaded.text.length)
@@ -1298,6 +1317,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                 } + WordCorrection(original, replacement)
                                 saveWordCorrections(context, bookUri, updated)
                                 content = replaceWholeWord(content, selectedWord, replacement)
+                                ReaderSessionCache.put(bookUri, content)
                                 wordToCorrect = null
                                 correctionDraft = ""
                                 android.widget.Toast.makeText(context, "Изменения сохранены", android.widget.Toast.LENGTH_SHORT).show()
@@ -1319,6 +1339,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     saveWordCorrections(context, bookUri, remaining)
                                     val originalText = readCachedBookText(context, bookUri) ?: content
                                     content = applyWordCorrections(context, bookUri, originalText)
+                                    ReaderSessionCache.put(bookUri, content)
                                     wordToCorrect = null
                                     correctionDraft = ""
                                     android.widget.Toast.makeText(context, "Исправление удалено", android.widget.Toast.LENGTH_SHORT).show()
