@@ -78,8 +78,9 @@ class SimplePdfActivity : Activity() {
     private lateinit var gestureDetector: GestureDetector
 
     private var pageBackground = Color.rgb(250, 247, 240)
-    // Page inset: 14 dp on the sides and top, 6 dp at the bottom.
-    private val edgePaddingDp = 18
+    // Shared page inset: 30 dp on the sides, 32 dp at the top, 8 dp at the bottom.
+    private val horizontalPaddingDp = 30
+    private val topPaddingDp = 32
     private val bottomPaddingDp = 8
     private val readerThemeState = mutableStateOf("paper")
     private val progressPrefs by lazy { getSharedPreferences("pdf_progress", MODE_PRIVATE) }
@@ -189,8 +190,8 @@ class SimplePdfActivity : Activity() {
 
         val root = FrameLayout(this).apply {
             setBackgroundColor(pageBackground)
-            val edgePaddingPx = dp(edgePaddingDp)
-            setPadding(edgePaddingPx, edgePaddingPx, edgePaddingPx, dp(bottomPaddingDp))
+            val horizontalPaddingPx = dp(horizontalPaddingDp)
+            setPadding(horizontalPaddingPx, dp(topPaddingDp), horizontalPaddingPx, dp(bottomPaddingDp))
             addView(pageView, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
@@ -356,7 +357,7 @@ class SimplePdfActivity : Activity() {
         activeRenderer.openPage(index).use { page ->
             val display = resources.displayMetrics
             // Render only to the PDF content width, excluding the 14 dp inset on both sides.
-            var width = (display.widthPixels - dp(edgePaddingDp * 2)).coerceAtLeast(1)
+            var width = (display.widthPixels - dp(horizontalPaddingDp * 2)).coerceAtLeast(1)
             var height = (width.toDouble() * page.height / page.width).toInt().coerceAtLeast(1)
             val maxPixels = 1_800_000L
             val pixels = width.toLong() * height
