@@ -357,6 +357,13 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
             savedLibraryScrollPosition = offset
         }
     }
+    var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Добавление") ?: "Добавление") }
+    var sortExpanded by remember { mutableStateOf(false) }
+    var newCollection by remember { mutableStateOf("") }
+    var collectionDialog by remember { mutableStateOf(false) }
+    var collectionTarget by remember { mutableStateOf<LocalBook?>(null) }
+    var collectionName by remember { mutableStateOf("") }
+    var currentBookUri by remember { mutableStateOf(prefs.getString("active_book_uri", null)) }
     LaunchedEffect(currentBookUri) {
         if (currentBookUri == null) {
             // Restore only after the library has been laid out with its app bar and system insets.
@@ -365,13 +372,6 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
             libraryScrollState.scrollTo(savedLibraryScrollPosition)
         }
     }
-    var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Добавление") ?: "Добавление") }
-    var sortExpanded by remember { mutableStateOf(false) }
-    var newCollection by remember { mutableStateOf("") }
-    var collectionDialog by remember { mutableStateOf(false) }
-    var collectionTarget by remember { mutableStateOf<LocalBook?>(null) }
-    var collectionName by remember { mutableStateOf("") }
-    var currentBookUri by remember { mutableStateOf(prefs.getString("active_book_uri", null)) }
     val currentBook = books.firstOrNull { it.uri == currentBookUri }
     DisposableEffect(currentBookUri) {
         val activity = context as? ComponentActivity
