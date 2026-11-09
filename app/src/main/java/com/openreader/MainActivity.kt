@@ -35,6 +35,8 @@ import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -862,11 +864,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             Triple("★", "Избранное", 1),
                             Triple("▤", "Папки и коллекции", 2),
                             Triple("✓", "Прочитанные", 3),
-                            Triple("🔖", "Закладки и цитаты", 4)
+                            Triple("", "Закладки и цитаты", 4)
                         ).forEach { (symbol, label, index) ->
                             NavigationDrawerItem(
                                 label = { Text(label) },
-                                icon = { Text(symbol) },
+                                icon = { if (index == 4) Icon(Icons.Outlined.BookmarkBorder, contentDescription = null) else Text(symbol) },
                                 selected = selectedTab == index,
                                 onClick = { selectedTab = index; drawerScope.launch { drawerState.close() } },
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
