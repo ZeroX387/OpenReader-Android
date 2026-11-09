@@ -350,7 +350,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var collectionDialog by remember { mutableStateOf(false) }
     var collectionTarget by remember { mutableStateOf<LocalBook?>(null) }
     var collectionName by remember { mutableStateOf("") }
-    var currentBookUri by rememberSaveable { mutableStateOf(prefs.getString("active_book_uri", null)) }
+    var currentBookUri by remember { mutableStateOf(prefs.getString("active_book_uri", null)) }
     val currentBook = books.firstOrNull { it.uri == currentBookUri }
     DisposableEffect(currentBookUri) {
         val activity = context as? ComponentActivity
@@ -755,7 +755,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
-                        val heightPx = with(density) { (maxHeight - 38.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 40.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
                         val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
                             produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx) {
@@ -813,7 +813,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         color = readerInk,
                                         textAlign = TextAlign.Justify,
                                         style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)),
-                                        modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 6.dp)
+                                        modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 8.dp)
                                     )
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
