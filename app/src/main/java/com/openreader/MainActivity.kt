@@ -707,11 +707,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         // Keep pagination width identical to the actual 18 dp text insets.
-                        val effectiveMargin = 18f
+                        val effectiveMargin = 30f
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
-                        val heightPx = with(density) { (maxHeight - 70.dp).roundToPx() }
+                        val heightPx = with(density) { (maxHeight - 40.dp).roundToPx() }
                         val fontPx = with(density) { fontSize.sp.toPx() }
                         val starts by key(content, widthPx, heightPx, fontPx, readerSpacing) {
                             produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, fontPx) {
@@ -769,7 +769,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         color = readerInk,
                                         textAlign = TextAlign.Justify,
                                         style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)),
-                                        modifier = Modifier.fillMaxSize().padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 8.dp)
+                                        modifier = Modifier.fillMaxSize().padding(start = 30.dp, top = 32.dp, end = 30.dp, bottom = 8.dp)
                                     )
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
