@@ -768,7 +768,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         color = readerInk,
                                         textAlign = TextAlign.Justify,
                                         style = androidx.compose.ui.text.TextStyle(platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true)),
-                                        modifier = Modifier.fillMaxSize().padding(start = 14.dp, top = 14.dp, end = 14.dp, bottom = 6.dp)
+                                        modifier = Modifier.fillMaxSize().padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 8.dp)
                                     )
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
