@@ -73,6 +73,16 @@ class MainActivity : ComponentActivity() {
         }
     }
     override fun onCreate(savedInstanceState: Bundle?) {
+        val themePreference = getSharedPreferences("openreader", Context.MODE_PRIVATE)
+            .getString("theme", "system") ?: "system"
+        val systemNight = (resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        setTheme(
+            if (themePreference == "dark" || (themePreference == "system" && systemNight))
+                R.style.OpenReaderTheme_Dark
+            else R.style.OpenReaderTheme_Light
+        )
         super.onCreate(savedInstanceState)
         acceptIntent(intent)
         setContent { OpenReaderApp(externalBook) }
@@ -85,6 +95,10 @@ class MainActivity : ComponentActivity() {
 }
 
 private data class LocalBook(val uri: String, val title: String, val format: String = "txt", val author: String = "", val coverUri: String = "", val favorite: Boolean = false, val finished: Boolean = false, val genre: String = "", val collection: String = "", val addedAt: Long = 0L, val length: Int = 0)
+
+private val coverBitmapCache = object : android.util.LruCache<String, android.graphics.Bitmap>(12 * 1024 * 1024) {
+    override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount
+}
 
 private fun loadBooks(context: Context): List<LocalBook> {
     val prefs = context.getSharedPreferences("openreader", Context.MODE_PRIVATE)
@@ -373,7 +387,13 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     val systemLanguage = androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language
     val englishUi = (if (languageChoice == "system") systemLanguage else languageChoice) != "ru"
     fun tr(ru: String, en: String) = if (englishUi) en else ru
-    val books = remember { mutableStateListOf<LocalBook>().apply { addAll(loadBooks(context)) } }
+    val books = remember { mutableStateListOf<LocalBook>() }
+    var booksLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val storedBooks = withContext(Dispatchers.IO) { loadBooks(context) }
+        books.addAll(storedBooks)
+        booksLoaded = true
+    }
     var notesBook by remember { mutableStateOf<LocalBook?>(null) }
     var notesMode by remember { mutableStateOf("Закладки") }
     var quoteDraft by remember { mutableStateOf("") }
@@ -438,13 +458,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     }
     // Restore the cached text immediately so reopening an already-read book does not
     // show an unnecessary loading delay. Read the cache only once per selected URI.
-    val initialCachedBookText = remember(currentBookUri) {
-        currentBookUri?.let { readCachedBookText(context, it) }
-    }
-    var content by remember(currentBookUri) { mutableStateOf(initialCachedBookText ?: "") }
-    var loadedBookUri by remember(currentBookUri) {
-        mutableStateOf(currentBookUri?.takeIf { initialCachedBookText != null })
-    }
+    // Disk cache reads happen on IO, never while composing the first frame.
+    var content by remember(currentBookUri) { mutableStateOf("") }
+    var loadedBookUri by remember(currentBookUri) { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var editingBook by remember { mutableStateOf<LocalBook?>(null) }
     var editedTitle by remember { mutableStateOf("") }
@@ -605,7 +621,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
         }
     }
 
-    LaunchedEffect(currentBookUri) {
+    LaunchedEffect(currentBookUri, booksLoaded) {
+        if (!booksLoaded) return@LaunchedEffect
         val book = books.firstOrNull { it.uri == currentBookUri }
         if (book == null) {
             content = ""
@@ -1011,7 +1028,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                 Text("+ Добавить TXT / FB2 / EPUB / PDF / DOCX / MOBI / AZW3")
                             }
                             Text("TXT, FB2, EPUB, PDF, DOCX, MOBI и AZW3: текстовое постраничное чтение.", style = MaterialTheme.typography.bodySmall)
-                            if (books.isEmpty()) {
+                            if (!booksLoaded) {
+                                Text("Загружаем библиотеку…", style = MaterialTheme.typography.bodyMedium)
+                            } else if (books.isEmpty()) {
                                 Text("Книг пока нет. Нажмите кнопку выше, чтобы добавить книгу.")
                             }
                         }
@@ -1045,12 +1064,22 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     Column(Modifier.padding(16.dp)) {
                                         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                             val cover by produceState<android.graphics.Bitmap?>(initialValue = null, book.uri, book.format, book.coverUri) {
-                                                value = withContext(Dispatchers.IO) {
-                                                    if (book.coverUri.isNotBlank()) {
+                                                val cacheKey = book.coverUri.ifBlank { book.uri }
+                                                value = coverBitmapCache.get(cacheKey) ?: withContext(Dispatchers.IO) {
+                                                    val decoded = if (book.coverUri.isNotBlank()) {
                                                         try { context.contentResolver.openInputStream(Uri.parse(book.coverUri))?.use { android.graphics.BitmapFactory.decodeStream(it) } } catch (_: Exception) { null }
-                                                    } else if (book.format == "fb2") loadFb2Cover(context, Uri.parse(book.uri)) else null
+                                                    } else if (book.format == "fb2") {
+                                                        loadFb2Cover(context, Uri.parse(book.uri))
+                                                    } else null
+                                                    if (decoded != null) coverBitmapCache.put(cacheKey, decoded)
+                                                    decoded
                                                 }
                                             }
+                                            val coverAlpha by animateFloatAsState(
+                                                targetValue = if (cover != null) 1f else 0f,
+                                                animationSpec = tween(280),
+                                                label = "coverFade"
+                                            )
                                             Box(
                                                 Modifier.width(96.dp).height(136.dp)
                                                     .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp)),
@@ -1060,7 +1089,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                                     Image(
                                                         bitmap = cover!!.asImageBitmap(),
                                                         contentDescription = "Обложка книги",
-                                                        modifier = Modifier.fillMaxSize(),
+                                                        modifier = Modifier.fillMaxSize().alpha(coverAlpha),
                                                         contentScale = ContentScale.Crop
                                                     )
                                                 } else {
