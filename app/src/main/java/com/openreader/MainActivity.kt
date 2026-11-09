@@ -377,12 +377,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
             // the system bars and the app bar have returned.
             var previous: Pair<Int, Int>? = null
             var stableFrames = 0
-            repeat(24) {
+            for (frame in 0 until 24) {
                 withFrameNanos { }
                 val metrics = libraryScrollState.viewportSize to libraryScrollState.maxValue
                 if (metrics.first > 0 && metrics == previous) stableFrames++ else stableFrames = 0
                 previous = metrics
-                if (stableFrames >= 3) return@repeat
+                if (stableFrames >= 3) break
             }
             if (libraryWasAtBottom) {
                 libraryScrollState.scrollTo(libraryScrollState.maxValue)
