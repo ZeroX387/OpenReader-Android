@@ -78,9 +78,9 @@ class SimplePdfActivity : Activity() {
     private lateinit var gestureDetector: GestureDetector
 
     private var pageBackground = Color.rgb(250, 247, 240)
-    // Page inset: 12 dp on the sides and top, 4 dp at the bottom.
-    private val edgePaddingDp = 12
-    private val bottomPaddingDp = 4
+    // Page inset: 14 dp on the sides and top, 6 dp at the bottom.
+    private val edgePaddingDp = 14
+    private val bottomPaddingDp = 6
     private val readerThemeState = mutableStateOf("paper")
     private val progressPrefs by lazy { getSharedPreferences("pdf_progress", MODE_PRIVATE) }
     private val progressKey: String
@@ -355,7 +355,7 @@ class SimplePdfActivity : Activity() {
         if (index !in 0 until activeRenderer.pageCount) return@synchronized null
         activeRenderer.openPage(index).use { page ->
             val display = resources.displayMetrics
-            // Render only to the PDF content width, excluding the 12 dp inset on both sides.
+            // Render only to the PDF content width, excluding the 14 dp inset on both sides.
             var width = (display.widthPixels - dp(edgePaddingDp * 2)).coerceAtLeast(1)
             var height = (width.toDouble() * page.height / page.width).toInt().coerceAtLeast(1)
             val maxPixels = 1_800_000L
