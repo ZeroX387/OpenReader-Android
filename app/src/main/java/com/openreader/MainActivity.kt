@@ -766,12 +766,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     }
                                 }
                             }
-                            Text(
-                                if (loadedBookUri != book.uri || content.isEmpty() || readyStarts == null) "Загрузка книги…" else "${page + 1} / ${readyStarts.size}",
-                                modifier = Modifier.fillMaxWidth().height(30.dp).background(readerBackground),
-                                color = readerInk.copy(alpha = if (readerTheme == "sepia") 0.78f else 0.72f),
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.labelSmall
+                            com.openreader.ui.ReaderBottomBar(
+                                pageIndex = page,
+                                pageCount = if (loadedBookUri == book.uri && content.isNotEmpty()) readyStarts?.size ?: 0 else 0,
+                                onPrevious = { moveTo(page - 1) },
+                                onNext = { moveTo(page + 1) },
+                                onSelectPage = { moveTo(it) }
                             )
                         }
                         if (showControls) {
