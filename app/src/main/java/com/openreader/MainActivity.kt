@@ -431,6 +431,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var quotePosition by remember { mutableIntStateOf(0) }
     var bookmarkPosition by remember { mutableIntStateOf(0) }
     var quoteEditor by remember { mutableStateOf(false) }
+    var wordToCorrect by remember { mutableStateOf<String?>(null) }
+    var correctionDraft by remember { mutableStateOf("") }
     var selectedTab by remember { mutableIntStateOf(0) }
     // Keep the library's position stable while the reader changes system-bar insets.
     val libraryScrollState = rememberScrollState()
@@ -692,7 +694,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     parsed
                     }
                 }
-                content = loaded.text
+                // Apply the private correction overlay before the first rendered frame.
+                // The disk text cache remains the untouched imported text.
+                content = applyWordCorrections(context, book.uri, loaded.text)
                 val loadedIndex = books.indexOfFirst { it.uri == book.uri }
                 if (loadedIndex >= 0 && books[loadedIndex].length != loaded.text.length) {
                     books[loadedIndex] = books[loadedIndex].copy(length = loaded.text.length)
@@ -896,6 +900,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         }
                     }
 
+                    var wordCorrectionEditMode by rememberSaveable(book.uri) { mutableStateOf(false) }
+                    var pageTextLayout by remember(book.uri) { mutableStateOf<TextLayoutResult?>(null) }
                     val density = LocalDensity.current
                     val textMeasurer = rememberTextMeasurer(cacheSize = 0)
                     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -969,12 +975,14 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                             }
                                         )
                                     }
-                                    .pointerInput(readyStarts, page, showControls) {
-                                        detectTapGestures { tap ->
-                                            when {
-                                                tap.x < size.width * 0.25f -> moveTo(page - 1)
-                                                tap.x > size.width * 0.75f -> moveTo(page + 1)
-                                                else -> showControls = !showControls
+                                    .pointerInput(readyStarts, page, showControls, wordCorrectionEditMode) {
+                                        if (!wordCorrectionEditMode) {
+                                            detectTapGestures { tap ->
+                                                when {
+                                                    tap.x < size.width * 0.25f -> moveTo(page - 1)
+                                                    tap.x > size.width * 0.75f -> moveTo(page + 1)
+                                                    else -> showControls = !showControls
+                                                }
                                             }
                                         }
                                     }
@@ -982,11 +990,27 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                 if (loadedBookUri == book.uri && content.isNotEmpty() && readyStarts != null) {
                                     val pageStart = readyStarts.getOrNull(page)?.coerceIn(0, content.length) ?: 0
                                     val pageEnd = (readyStarts.getOrNull(page + 1) ?: content.length).coerceIn(pageStart, content.length)
+                                    val pageText = content.substring(pageStart, pageEnd)
                                     Text(
-                                        styledPage(content.substring(pageStart, pageEnd)),
+                                        styledPage(pageText),
                                         color = readerInk,
                                         style = readerTextStyle,
-                                        modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
+                                        onTextLayout = { pageTextLayout = it },
+                                        modifier = Modifier.fillMaxSize()
+                                            .padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
+                                            .pointerInput(wordCorrectionEditMode, pageText) {
+                                                if (wordCorrectionEditMode) {
+                                                    detectTapGestures { tap ->
+                                                        val offset = pageTextLayout?.getOffsetForPosition(tap)
+                                                        val selected = offset?.let { wordAt(pageText, it) }
+                                                        if (selected != null) {
+                                                            wordToCorrect = selected
+                                                            correctionDraft = ""
+                                                            wordCorrectionEditMode = false
+                                                        }
+                                                    }
+                                                }
+                                            }
                                     )
                                 } else {
                                     ReaderLoadingState(openingMessage, readerBackground, readerInk)
@@ -1040,6 +1064,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     prefs.edit().putFloat("font_size", fontSize).apply()
                                 },
                                 onSettings = { showReaderSettings = true },
+                                onEditWord = { wordCorrectionEditMode = !wordCorrectionEditMode },
+                                wordEditMode = wordCorrectionEditMode,
                                 onIncreaseText = {
                                     fontSize = (fontSize + 1).coerceAtMost(32f)
                                     prefs.edit().putFloat("font_size", fontSize).apply()
@@ -1225,6 +1251,55 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 dismissButton = { TextButton(onClick = { collectionTarget = null }) { Text("Отмена") } }
             )
         }
+        if (wordToCorrect != null && currentBook != null) {
+            val selectedWord = wordToCorrect!!
+            val matchCount = countWholeWordOccurrences(content, selectedWord)
+            AlertDialog(
+                onDismissRequest = { wordToCorrect = null; correctionDraft = "" },
+                title = { Text("Исправить слово") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedTextField(
+                            value = correctionDraft,
+                            onValueChange = { correctionDraft = it },
+                            label = { Text("Новое слово") },
+                            singleLine = true
+                        )
+                        Text("Найдено совпадений: $matchCount", style = MaterialTheme.typography.bodySmall)
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = correctionDraft.trim().isNotEmpty() &&
+                            !correctionDraft.trim().equals(selectedWord, ignoreCase = true),
+                        onClick = {
+                            val replacement = correctionDraft.trim()
+                            val bookUri = currentBook!!.uri
+                            try {
+                                val saved = loadWordCorrections(context, bookUri)
+                                // If the selected word was already corrected, update its original mapping.
+                                val original = saved.firstOrNull {
+                                    it.replacement.equals(selectedWord, ignoreCase = true)
+                                }?.original ?: selectedWord
+                                val updated = saved.filterNot {
+                                    it.original.equals(original, ignoreCase = true)
+                                } + WordCorrection(original, replacement)
+                                saveWordCorrections(context, bookUri, updated)
+                                content = replaceWholeWord(content, selectedWord, replacement)
+                                wordToCorrect = null
+                                correctionDraft = ""
+                                android.widget.Toast.makeText(context, "Изменения сохранены", android.widget.Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                error = e.message ?: "Не удалось сохранить исправление."
+                            }
+                        }
+                    ) { Text("Сохранить") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { wordToCorrect = null; correctionDraft = "" }) { Text("Отмена") }
+                }
+            )
+        }
         if (quoteEditor && currentBook != null) {
             val book = currentBook!!
             AlertDialog(
@@ -1320,6 +1395,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 confirmButton = {
                     TextButton(onClick = {
                         books.removeAll { it.uri == target.uri }
+                        deleteWordCorrections(context, target.uri)
                         saveBooks(context, books)
                         if (currentBookUri == target.uri) currentBookUri = null
                         bookToRemove = null
