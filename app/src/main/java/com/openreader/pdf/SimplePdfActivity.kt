@@ -43,6 +43,8 @@ import androidx.compose.ui.platform.ComposeView
 import android.widget.Toast
 import android.util.LruCache
 import java.util.concurrent.Executors
+import java.io.File
+import java.io.FileOutputStream
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -63,6 +65,7 @@ class SimplePdfActivity : Activity() {
     @Volatile private var requestedPage = 0
     private var renderer: PdfRenderer? = null
     private var fileDescriptor: android.os.ParcelFileDescriptor? = null
+    private var cachedPdfFile: File? = null
     private var pageCount = 0
     private var currentPage = 0
     private var renderGeneration = 0
@@ -275,9 +278,35 @@ class SimplePdfActivity : Activity() {
         progress.visibility = View.VISIBLE
         rendererExecutor.execute {
             try {
-                val descriptor = contentResolver.openFileDescriptor(uri, "r")
-                    ?: error("Не удалось получить доступ к PDF-файлу.")
-                val opened = PdfRenderer(descriptor)
+                // PdfRenderer requires a seekable file descriptor. Some document providers
+                // expose cloud/virtual documents as non-seekable pipes, which fail immediately.
+                // Copy the source into the app cache first, then open that local seekable file.
+                val cacheDirectory = File(cacheDir, "pdf_cache").apply { mkdirs() }
+                val localFile = File.createTempFile("openreader_", ".pdf", cacheDirectory)
+                try {
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(localFile).use { output ->
+                            input.copyTo(output, 64 * 1024)
+                            output.fd.sync()
+                        }
+                    } ?: error("Не удалось прочитать PDF-файл.")
+                } catch (copyError: Throwable) {
+                    localFile.delete()
+                    throw copyError
+                }
+
+                val descriptor = android.os.ParcelFileDescriptor.open(
+                    localFile,
+                    android.os.ParcelFileDescriptor.MODE_READ_ONLY
+                )
+                val opened = try {
+                    PdfRenderer(descriptor)
+                } catch (openError: Throwable) {
+                    descriptor.close()
+                    localFile.delete()
+                    throw openError
+                }
+                cachedPdfFile = localFile
                 if (opened.pageCount <= 0) {
                     opened.close()
                     descriptor.close()
@@ -472,6 +501,10 @@ class SimplePdfActivity : Activity() {
                 try { fileDescriptor?.close() } catch (_: Exception) {}
                 renderer = null
                 fileDescriptor = null
+                cachedPdfFile?.let { file ->
+                    try { file.delete() } catch (_: Exception) {}
+                }
+                cachedPdfFile = null
             }
         }
         rendererExecutor.shutdown()
