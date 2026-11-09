@@ -21,10 +21,10 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.SeekBar
 import android.widget.TextView
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.platform.ComposeView
 import android.widget.Toast
 import android.util.LruCache
@@ -53,13 +53,13 @@ class SimplePdfActivity : Activity() {
     private var currentPage = 0
     private var renderGeneration = 0
     private var zoom = 1f
+    private val pageIndexState = mutableIntStateOf(0)
+    private val pageCountState = mutableIntStateOf(0)
 
     private lateinit var pageView: ImageView
     private lateinit var progress: ProgressBar
-    private lateinit var bottomBar: LinearLayout
+    private lateinit var bottomBar: View
     private lateinit var topBar: View
-    private lateinit var pageLabel: TextView
-    private lateinit var pageSeek: SeekBar
     private lateinit var scaleDetector: ScaleGestureDetector
     private lateinit var gestureDetector: GestureDetector
 
@@ -121,40 +121,19 @@ class SimplePdfActivity : Activity() {
             }
         }
 
-        pageLabel = TextView(this).apply {
-            setTextColor(Color.WHITE)
-            textSize = 13f
-            gravity = Gravity.CENTER
-        }
-        pageSeek = SeekBar(this).apply {
-            max = 0
-            progress = 0
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, value: Int, fromUser: Boolean) {
-                    if (fromUser && pageCount > 0) pageLabel.text = "${value + 1} / $pageCount"
+        bottomBar = ComposeView(this).apply {
+            setContent {
+                MaterialTheme(colorScheme = lightColorScheme()) {
+                    com.openreader.ui.ReaderBottomBar(
+                        pageIndex = pageIndexState.intValue,
+                        pageCount = pageCountState.intValue,
+                        onPrevious = { showPage(pageIndexState.intValue - 1) },
+                        onNext = { showPage(pageIndexState.intValue + 1) },
+                        onSelectPage = { showPage(it) }
+                    )
                 }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                    seekBar?.progress?.let { showPage(it) }
-                }
-            })
+            }
         }
-
-        val controls = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-        val previous = makeButton("‹") { showPage(currentPage - 1) }
-        val next = makeButton("›") { showPage(currentPage + 1) }
-        controls.addView(previous, LinearLayout.LayoutParams(0, dp(44), 1f))
-        controls.addView(pageLabel, LinearLayout.LayoutParams(0, dp(44), 2f))
-        controls.addView(next, LinearLayout.LayoutParams(0, dp(44), 1f))
-        bottomBar.addView(pageSeek, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(28)
-        ))
-        bottomBar.addView(controls, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, dp(44)
-        ))
 
         val root = FrameLayout(this).apply {
             setBackgroundColor(pageBackground)
@@ -246,7 +225,7 @@ class SimplePdfActivity : Activity() {
                 val saved = progressPrefs.getInt(progressKey, 0).coerceIn(0, pageCount - 1)
                 mainHandler.post {
                     if (destroyed) return@post
-                    pageSeek.max = (pageCount - 1).coerceAtLeast(0)
+                    pageCountState.intValue = pageCount
                     showPage(saved)
                 }
             } catch (error: Exception) {
@@ -265,12 +244,11 @@ class SimplePdfActivity : Activity() {
         if (destroyed || pageCount <= 0) return
         val safeIndex = index.coerceIn(0, pageCount - 1)
         currentPage = safeIndex
+        pageIndexState.intValue = safeIndex
         requestedPage = safeIndex
         renderGeneration++
         val generation = renderGeneration
         zoom = 1f
-        pageLabel.text = "${safeIndex + 1} / $pageCount"
-        pageSeek.progress = safeIndex
         progressPrefs.edit().putInt(progressKey, safeIndex).apply()
         progress.visibility = View.VISIBLE
 
