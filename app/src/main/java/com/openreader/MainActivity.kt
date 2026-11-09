@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -963,6 +964,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 } else {
                     Column(
                         Modifier.fillMaxSize()
+                            // Keep the changing viewport hidden until its final scroll offset is restored.
+                            .alpha(if (libraryTransitioning) 0f else 1f)
                             .verticalScroll(libraryScrollState)
                             .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp + libraryNavigationInset),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
