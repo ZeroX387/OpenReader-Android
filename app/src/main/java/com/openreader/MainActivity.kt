@@ -374,16 +374,16 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     }
     LaunchedEffect(currentBookUri) {
         if (currentBookUri == null && libraryTransitioning) {
-            // Wait for the library viewport and scroll range to stop changing after
-            // the system bars and the app bar have returned.
+            // Wait briefly for the system bars and app bar to settle before
+            // revealing the library. Keep this short to avoid a noticeable blank frame.
             var previous: Pair<Int, Int>? = null
             var stableFrames = 0
-            for (frame in 0 until 24) {
+            for (frame in 0 until 12) {
                 withFrameNanos { }
                 val metrics = libraryScrollState.viewportSize to libraryScrollState.maxValue
                 if (metrics.first > 0 && metrics == previous) stableFrames++ else stableFrames = 0
                 previous = metrics
-                if (stableFrames >= 3) break
+                if (stableFrames >= 2) break
             }
             if (libraryWasAtBottom) {
                 libraryScrollState.scrollTo(libraryScrollState.maxValue)
