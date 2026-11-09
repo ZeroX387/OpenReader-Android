@@ -154,6 +154,7 @@ fun ReaderAppearanceSettings(
     fontSize: Float,
     readerSpacing: Float,
     readerMargin: Float,
+    defaultMargin: Float = 36f,
     onThemeChange: (String) -> Unit,
     onFontSizeChange: (Float) -> Unit,
     onSpacingChange: (Float) -> Unit,
@@ -200,7 +201,7 @@ fun ReaderAppearanceSettings(
             androidx.compose.material3.TextButton(onClick = { onFontSizeChange(19f); onSpacingChange(1.5f) }) {
                 Text("Вернуть стандарт: 19 sp / 1,5")
             }
-            Text("Боковые поля: ${readerMargin.coerceIn(16f, 40f).toInt()} dp")
+            Text("Боковые поля: ${readerMargin.coerceIn(24f, 64f).toInt()} dp")
             Text("Слева и справа одинаковые. Сверху и снизу — по 12 dp.", style = MaterialTheme.typography.bodySmall)
             androidx.compose.foundation.layout.Box(
                 Modifier.fillMaxWidth().background(pageBackground).padding(horizontal = readerMargin.coerceIn(16f, 40f).dp, vertical = 12.dp)
@@ -211,8 +212,8 @@ fun ReaderAppearanceSettings(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Justify
                 )
             }
-            androidx.compose.material3.Slider(value = readerMargin.coerceIn(16f, 40f), onValueChange = onMarginChange, valueRange = 16f..40f)
-            androidx.compose.material3.TextButton(onClick = { onMarginChange(24f) }) { Text("Стандартные поля") }
+            androidx.compose.material3.Slider(value = readerMargin.coerceIn(16f, 40f), onValueChange = onMarginChange, valueRange = 24f..64f)
+            androidx.compose.material3.TextButton(onClick = { onMarginChange(defaultMargin) }) { Text("Стандартные поля") }
         } else {
             Text(
                 "Для PDF размер и расположение текста определяются самим документом. Его масштаб меняется жестом увеличения.",
