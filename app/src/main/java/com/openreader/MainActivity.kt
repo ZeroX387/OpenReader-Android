@@ -362,6 +362,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var coverTargetUri by remember { mutableStateOf<String?>(null) }
     var bookToRemove by remember { mutableStateOf<LocalBook?>(null) }
     var fontSize by remember { mutableFloatStateOf(prefs.getFloat("font_size", 19f)) }
+    var textAlignment by remember { mutableStateOf(prefs.getString("text_alignment", "justify") ?: "justify") }
     var showSettings by remember { mutableStateOf(false) }
     var showReaderSettings by remember { mutableStateOf(false) }
     var readerTheme by remember { mutableStateOf(prefs.getString("reader_theme", "paper") ?: "paper") }
@@ -746,7 +747,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         val readerTextStyle = TextStyle(
                             fontSize = fontSize.sp,
                             lineHeight = (fontSize * readerSpacing).sp,
-                            textAlign = TextAlign.Justify,
+                            textAlign = if (textAlignment == "start") TextAlign.Start else TextAlign.Justify,
                             platformStyle = PlatformTextStyle(includeFontPadding = true)
                         )
                         // Wait until the window dimensions settle (system bars, keyboard,
@@ -860,6 +861,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             com.openreader.ui.ReaderTopBar(
                                 title = book.title,
                                 fontSize = fontSize,
+                                textAlignment = textAlignment,
+                                onAlignmentChange = {
+                                    textAlignment = it
+                                    prefs.edit().putString("text_alignment", it).apply()
+                                },
                                 onBack = { currentBookUri = null; content = "" },
                                 onBookmark = {
                                     val key = "bookmarks_" + book.uri.hashCode()
