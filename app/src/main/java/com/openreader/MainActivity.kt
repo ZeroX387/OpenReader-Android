@@ -349,11 +349,18 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var bookmarkPosition by remember { mutableIntStateOf(0) }
     var quoteEditor by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
-    // Keep the library scroll state alive while the reader is shown.
+    // Track the library offset and capture it synchronously before switching screens.
     val libraryScrollState = rememberScrollState()
+    // The navigation bar is hidden in the reader and returns in the library.
+    // Keep an equal amount of scrollable space at the bottom so the viewport change
+    // does not clamp the previously saved scroll position.
     val libraryNavigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     var savedLibraryScrollPosition by rememberSaveable { mutableIntStateOf(0) }
-    var restoringLibraryPosition by remember { mutableStateOf(false) }
+    LaunchedEffect(libraryScrollState) {
+        snapshotFlow { libraryScrollState.value }.collect { offset ->
+            savedLibraryScrollPosition = offset
+        }
+    }
     var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Добавление") ?: "Добавление") }
     var sortExpanded by remember { mutableStateOf(false) }
     var newCollection by remember { mutableStateOf("") }
@@ -361,22 +368,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var collectionTarget by remember { mutableStateOf<LocalBook?>(null) }
     var collectionName by remember { mutableStateOf("") }
     var currentBookUri by remember { mutableStateOf(prefs.getString("active_book_uri", null)) }
-    LaunchedEffect(libraryScrollState) {
-        snapshotFlow { Triple(libraryScrollState.value, currentBookUri, restoringLibraryPosition) }
-            .collect { (offset, bookUri, restoring) ->
-                // Never overwrite the saved library position with a temporary clamped
-                // value while the reader is being closed and the library is relaid out.
-                if (bookUri == null && !restoring) savedLibraryScrollPosition = offset
-            }
-    }
     LaunchedEffect(currentBookUri) {
         if (currentBookUri == null) {
-            restoringLibraryPosition = true
-            // Wait for the library viewport and system bars to finish relayout.
+            // Restore only after the library has been laid out with its app bar and system insets.
             withFrameNanos { }
             withFrameNanos { }
             libraryScrollState.scrollTo(savedLibraryScrollPosition)
-            restoringLibraryPosition = false
         }
     }
     val currentBook = books.firstOrNull { it.uri == currentBookUri }
@@ -527,14 +524,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
     BackHandler(enabled = currentBookUri != null && !showReaderSettings && !showWhatsNew) {
         savedLibraryScrollPosition = libraryScrollState.value
-        restoringLibraryPosition = true
         currentBookUri = null
         content = ""
     }
 
     fun openBook(book: LocalBook) {
         savedLibraryScrollPosition = libraryScrollState.value
-        restoringLibraryPosition = true
         error = null
         if (book.format == "pdf") {
             context.startActivity(
@@ -907,7 +902,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     textAlignment = it
                                     prefs.edit().putString("text_alignment", it).apply()
                                 },
-                                onBack = { savedLibraryScrollPosition = libraryScrollState.value; restoringLibraryPosition = true; currentBookUri = null; content = "" },
+                                onBack = { savedLibraryScrollPosition = libraryScrollState.value; currentBookUri = null; content = "" },
                                 onBookmark = {
                                     val key = "bookmarks_" + book.uri.hashCode()
                                     val items = org.json.JSONArray(prefs.getString(key, "[]") ?: "[]")
