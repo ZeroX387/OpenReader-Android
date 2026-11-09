@@ -349,18 +349,12 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var bookmarkPosition by remember { mutableIntStateOf(0) }
     var quoteEditor by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
-    // Track the library offset and capture it synchronously before switching screens.
+    // Keep the library's position stable while the reader changes system-bar insets.
     val libraryScrollState = rememberScrollState()
-    // The navigation bar is hidden in the reader and returns in the library.
-    // Keep an equal amount of scrollable space at the bottom so the viewport change
-    // does not clamp the previously saved scroll position.
     val libraryNavigationInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     var savedLibraryScrollPosition by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(libraryScrollState) {
-        snapshotFlow { libraryScrollState.value }.collect { offset ->
-            savedLibraryScrollPosition = offset
-        }
-    }
+    var libraryWasAtBottom by rememberSaveable { mutableStateOf(false) }
+    var libraryTransitioning by remember { mutableStateOf(false) }
     var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Добавление") ?: "Добавление") }
     var sortExpanded by remember { mutableStateOf(false) }
     var newCollection by remember { mutableStateOf("") }
@@ -368,12 +362,34 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var collectionTarget by remember { mutableStateOf<LocalBook?>(null) }
     var collectionName by remember { mutableStateOf("") }
     var currentBookUri by remember { mutableStateOf(prefs.getString("active_book_uri", null)) }
+    LaunchedEffect(libraryScrollState, currentBookUri, libraryTransitioning) {
+        if (!libraryTransitioning && currentBookUri == null) {
+            snapshotFlow { libraryScrollState.value }.collect { offset ->
+                savedLibraryScrollPosition = offset
+                libraryWasAtBottom = libraryScrollState.maxValue > 0 &&
+                    offset >= libraryScrollState.maxValue - 2
+            }
+        }
+    }
     LaunchedEffect(currentBookUri) {
-        if (currentBookUri == null) {
-            // Restore only after the library has been laid out with its app bar and system insets.
-            withFrameNanos { }
-            withFrameNanos { }
-            libraryScrollState.scrollTo(savedLibraryScrollPosition)
+        if (currentBookUri == null && libraryTransitioning) {
+            // Wait for the library viewport and scroll range to stop changing after
+            // the system bars and the app bar have returned.
+            var previous: Pair<Int, Int>? = null
+            var stableFrames = 0
+            repeat(24) {
+                withFrameNanos { }
+                val metrics = libraryScrollState.viewportSize to libraryScrollState.maxValue
+                if (metrics.first > 0 && metrics == previous) stableFrames++ else stableFrames = 0
+                previous = metrics
+                if (stableFrames >= 3) return@repeat
+            }
+            if (libraryWasAtBottom) {
+                libraryScrollState.scrollTo(libraryScrollState.maxValue)
+            } else {
+                libraryScrollState.scrollTo(savedLibraryScrollPosition.coerceIn(0, libraryScrollState.maxValue))
+            }
+            libraryTransitioning = false
         }
     }
     val currentBook = books.firstOrNull { it.uri == currentBookUri }
@@ -524,12 +540,17 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
     BackHandler(enabled = currentBookUri != null && !showReaderSettings && !showWhatsNew) {
         savedLibraryScrollPosition = libraryScrollState.value
+        libraryWasAtBottom = libraryScrollState.maxValue > 0 &&
+            libraryScrollState.value >= libraryScrollState.maxValue - 2
+        libraryTransitioning = true
         currentBookUri = null
         content = ""
     }
 
     fun openBook(book: LocalBook) {
         savedLibraryScrollPosition = libraryScrollState.value
+        libraryWasAtBottom = libraryScrollState.maxValue > 0 &&
+            libraryScrollState.value >= libraryScrollState.maxValue - 2
         error = null
         if (book.format == "pdf") {
             context.startActivity(
@@ -540,6 +561,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
             )
             return
         }
+        libraryTransitioning = true
         currentBookUri = book.uri
     }
 
@@ -902,7 +924,14 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     textAlignment = it
                                     prefs.edit().putString("text_alignment", it).apply()
                                 },
-                                onBack = { savedLibraryScrollPosition = libraryScrollState.value; currentBookUri = null; content = "" },
+                                onBack = {
+                                    savedLibraryScrollPosition = libraryScrollState.value
+                                    libraryWasAtBottom = libraryScrollState.maxValue > 0 &&
+                                        libraryScrollState.value >= libraryScrollState.maxValue - 2
+                                    libraryTransitioning = true
+                                    currentBookUri = null
+                                    content = ""
+                                },
                                 onBookmark = {
                                     val key = "bookmarks_" + book.uri.hashCode()
                                     val items = org.json.JSONArray(prefs.getString(key, "[]") ?: "[]")
