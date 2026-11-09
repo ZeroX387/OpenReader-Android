@@ -331,11 +331,35 @@ class SimplePdfActivity : Activity() {
                     showPage(saved)
                 }
             } catch (error: Throwable) {
+                android.util.Log.e("OpenReaderPDF", "PDF opening failed", error)
                 mainHandler.post {
                     if (!destroyed) {
                         progress.visibility = View.GONE
-                        Toast.makeText(this, "Не удалось открыть PDF: ${error.message ?: "ошибка файла"}", Toast.LENGTH_LONG).show()
-                        finish()
+                        pageView.visibility = View.GONE
+                        val root = pageView.parent as? FrameLayout
+                        val cause = generateSequence(error as Throwable?) { it.cause }.lastOrNull()
+                        val details = buildString {
+                            append(error.javaClass.simpleName)
+                            error.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(it) }
+                            if (cause != null && cause !== error) {
+                                append("\\nПричина: ").append(cause.javaClass.simpleName)
+                                cause.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(it) }
+                            }
+                        }
+                        val message = TextView(this).apply {
+                            text = "Не удалось открыть PDF\\n\\n$details\\n\\nВернитесь назад и попробуйте другой файл. Сообщите нам этот текст."
+                            textSize = 16f
+                            gravity = Gravity.CENTER
+                            setPadding(dp(28), dp(28), dp(28), dp(28))
+                            setTextColor(if (readerThemeState.value == "dark") Color.WHITE else Color.DKGRAY)
+                            setBackgroundColor(pageBackground)
+                        }
+                        root?.addView(message, FrameLayout.LayoutParams(
+                            FrameLayout.LayoutParams.MATCH_PARENT,
+                            FrameLayout.LayoutParams.MATCH_PARENT
+                        ))
+                        topBar.visibility = View.VISIBLE
+                        topBar.bringToFront()
                     }
                 }
             }
