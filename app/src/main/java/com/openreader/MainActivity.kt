@@ -321,7 +321,7 @@ private fun ClosingBookState() {
     Box(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(androidx.compose.ui.graphics.Color.Black)
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null,
@@ -333,8 +333,16 @@ private fun ClosingBookState() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Закрываем книгу…", style = MaterialTheme.typography.bodyLarge)
-            LinearProgressIndicator(Modifier.width(180.dp))
+            Text(
+                "Закрываем книгу…",
+                color = androidx.compose.ui.graphics.Color.White,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            LinearProgressIndicator(
+                modifier = Modifier.width(180.dp),
+                color = androidx.compose.ui.graphics.Color.White,
+                trackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.24f)
+            )
         }
     }
 }
