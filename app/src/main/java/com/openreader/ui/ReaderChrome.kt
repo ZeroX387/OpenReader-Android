@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun ReaderTopBar(
     title: String,
+    fontSize: Float,
     onBack: () -> Unit,
     onBookmark: () -> Unit,
     onQuotes: () -> Unit,
@@ -86,8 +87,11 @@ fun ReaderTopBar(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDecreaseText) { Text("A−") }
-                    Text("Размер текста", style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = fontSize.toInt().toString(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     TextButton(onClick = onIncreaseText) { Text("A+") }
                 }
             }
@@ -154,7 +158,7 @@ fun ReaderAppearanceSettings(
     fontSize: Float,
     readerSpacing: Float,
     readerMargin: Float,
-    defaultMargin: Float = 36f,
+    defaultMargin: Float = 52f,
     onThemeChange: (String) -> Unit,
     onFontSizeChange: (Float) -> Unit,
     onSpacingChange: (Float) -> Unit,
@@ -201,10 +205,10 @@ fun ReaderAppearanceSettings(
             androidx.compose.material3.TextButton(onClick = { onFontSizeChange(19f); onSpacingChange(1.5f) }) {
                 Text("Вернуть стандарт: 19 sp / 1,5")
             }
-            Text("Боковые поля: ${readerMargin.coerceIn(24f, 64f).toInt()} dp")
+            Text("Боковые поля: ${readerMargin.coerceIn(24f, 80f).toInt()} dp")
             Text("Слева и справа одинаковые. Сверху и снизу — по 12 dp.", style = MaterialTheme.typography.bodySmall)
             androidx.compose.foundation.layout.Box(
-                Modifier.fillMaxWidth().background(pageBackground).padding(horizontal = readerMargin.coerceIn(16f, 40f).dp, vertical = 12.dp)
+                Modifier.fillMaxWidth().background(pageBackground).padding(horizontal = readerMargin.coerceIn(24f, 80f).dp, vertical = 12.dp)
             ) {
                 Text(
                     "Это пример страницы книги. Поля по бокам меняются сразу, а текст остаётся внутри книжной области.",
@@ -212,7 +216,7 @@ fun ReaderAppearanceSettings(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Justify
                 )
             }
-            androidx.compose.material3.Slider(value = readerMargin.coerceIn(16f, 40f), onValueChange = onMarginChange, valueRange = 24f..64f)
+            androidx.compose.material3.Slider(value = readerMargin.coerceIn(24f, 80f), onValueChange = onMarginChange, valueRange = 24f..80f)
             androidx.compose.material3.TextButton(onClick = { onMarginChange(defaultMargin) }) { Text("Стандартные поля") }
         } else {
             Text(
