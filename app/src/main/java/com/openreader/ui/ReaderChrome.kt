@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.sp
 fun ReaderTopBar(
     title: String,
     fontSize: Float,
+    textAlignment: String,
+    onAlignmentChange: (String) -> Unit,
     onBack: () -> Unit,
     onBookmark: () -> Unit,
     onQuotes: () -> Unit,
@@ -82,17 +84,22 @@ fun ReaderTopBar(
             }
             if (showTextSizeControls) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
-                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, bottom = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDecreaseText) { Text("A−") }
-                    Text(
-                        text = fontSize.toInt().toString(),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    TextButton(onClick = onIncreaseText) { Text("A+") }
+                    TextButton(onClick = { onAlignmentChange(if (textAlignment == "justify") "start" else "justify") }) {
+                        Text(if (textAlignment == "justify") "☷ По ширине" else "☰ По левому краю")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = onDecreaseText) { Text("A−") }
+                        Text(
+                            text = fontSize.toInt().toString(),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(onClick = onIncreaseText) { Text("A+") }
+                    }
                 }
             }
         }
