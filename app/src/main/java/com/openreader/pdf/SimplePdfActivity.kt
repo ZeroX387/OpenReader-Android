@@ -55,7 +55,7 @@ class SimplePdfActivity : Activity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val rendererExecutor = Executors.newSingleThreadExecutor()
     private val rendererLock = Any()
-    private val pageCache = object : LruCache<Int, Bitmap>(24 * 1024 * 1024) {
+    private val pageCache = object : LruCache<Int, Bitmap>(12 * 1024 * 1024) {
         override fun sizeOf(key: Int, value: Bitmap): Int = value.byteCount
     }
 
@@ -200,6 +200,9 @@ class SimplePdfActivity : Activity() {
             ))
         }
         setContentView(root)
+        // Keep reading area clear by default; a center tap reveals both bars.
+        topBar.visibility = View.GONE
+        bottomBar.visibility = View.GONE
 
         scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -284,7 +287,7 @@ class SimplePdfActivity : Activity() {
                     pageCountState.intValue = pageCount
                     showPage(saved)
                 }
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 mainHandler.post {
                     if (!destroyed) {
                         progress.visibility = View.GONE
@@ -330,7 +333,7 @@ class SimplePdfActivity : Activity() {
                     }
                     prefetchNeighbors(safeIndex)
                 }
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 mainHandler.post {
                     if (!destroyed && generation == renderGeneration) {
                         progress.visibility = View.GONE
@@ -346,9 +349,9 @@ class SimplePdfActivity : Activity() {
         if (index !in 0 until activeRenderer.pageCount) return@synchronized null
         activeRenderer.openPage(index).use { page ->
             val display = resources.displayMetrics
-            var width = (display.widthPixels * 1.6f).toInt().coerceIn(720, 2400)
+            var width = (display.widthPixels * 1.2f).toInt().coerceIn(720, 1600)
             var height = (width.toDouble() * page.height / page.width).toInt().coerceAtLeast(1)
-            val maxPixels = 4_000_000L
+            val maxPixels = 1_800_000L
             val pixels = width.toLong() * height
             if (pixels > maxPixels) {
                 val factor = kotlin.math.sqrt(maxPixels.toDouble() / pixels)
