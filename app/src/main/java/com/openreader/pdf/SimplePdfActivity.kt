@@ -104,11 +104,21 @@ class SimplePdfActivity : Activity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_VERTICAL
         }
-        topBar.addView(makeButton("‹") { finish() }, LinearLayout.LayoutParams(dp(48), dp(52)))
+        topBar.addView(makeButton("‹") { finish() }, LinearLayout.LayoutParams(dp(44), dp(52)))
         topBar.addView(titleLabel, LinearLayout.LayoutParams(0, dp(52), 1f))
-        topBar.addView(makeButton("⋮") {
-            Toast.makeText(this, "Дополнительные функции PDF добавим следующим этапом", Toast.LENGTH_SHORT).show()
-        }, LinearLayout.LayoutParams(dp(48), dp(52)))
+        topBar.addView(makeButton("🔖") {
+            val key = "bookmarks_" + progressKey
+            val saved = progressPrefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+            saved.add(currentPage.toString())
+            progressPrefs.edit().putStringSet(key, saved).apply()
+            Toast.makeText(this, "Закладка на странице " + (currentPage + 1), Toast.LENGTH_SHORT).show()
+        }, LinearLayout.LayoutParams(dp(44), dp(52)))
+        topBar.addView(makeButton("⌕") {
+            Toast.makeText(this, "Поиск по тексту PDF добавим следующим этапом", Toast.LENGTH_SHORT).show()
+        }, LinearLayout.LayoutParams(dp(44), dp(52)))
+        topBar.addView(makeButton("⚙") {
+            Toast.makeText(this, "Настройки PDF появятся в общем меню чтения", Toast.LENGTH_SHORT).show()
+        }, LinearLayout.LayoutParams(dp(44), dp(52)))
 
         pageLabel = TextView(this).apply {
             setTextColor(Color.WHITE)
@@ -173,7 +183,7 @@ class SimplePdfActivity : Activity() {
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                bottomBar.visibility = if (bottomBar.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+                toggleReaderBars()
                 return true
             }
             override fun onFling(
