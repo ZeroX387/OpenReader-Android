@@ -251,7 +251,8 @@ private fun pageStarts(text: String, widthPx: Int, heightPx: Int, fontPx: Float,
         .setLineSpacing((fontPx * (spacing - 1f)).coerceAtLeast(0f), 1f)
         .setJustificationMode(android.text.Layout.JUSTIFICATION_MODE_INTER_WORD)
         .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY)
-        .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NORMAL)
+        // Never split a word at a page boundary; the next page must start at a complete word.
+        .setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE)
         .build()
     if (layout.lineCount == 0) return listOf(0)
     val anchorLine = layout.getLineForOffset(anchor.coerceIn(0, text.lastIndex))
