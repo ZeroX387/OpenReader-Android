@@ -1021,7 +1021,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             if (showControls) {
                                 com.openreader.ui.ReaderBottomBar(
                                     pageIndex = page,
-                                    pageCount = if (loadedBookUri == book.uri && content.isNotEmpty()) readyStarts?.size ?: 0 else 0,
+                                    pageCount = if (loadedBookUri == book.uri && content.isNotEmpty()) (readyStarts?.size ?: 1) else 0,
                                     onPrevious = { moveTo(page - 1) },
                                     onNext = { moveTo(page + 1) },
                                     onSelectPage = { moveTo(it) }
