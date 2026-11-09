@@ -183,7 +183,17 @@ class SimplePdfActivity : Activity() {
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                toggleReaderBars()
+                if (zoom > 1.02f) return false
+                val width = pageView.width.toFloat().coerceAtLeast(1f)
+                when {
+                    e.x < width * 0.28f -> {
+                        showPage(currentPage - 1)
+                    }
+                    e.x > width * 0.72f -> {
+                        showPage(currentPage + 1)
+                    }
+                    else -> toggleReaderBars()
+                }
                 return true
             }
             override fun onFling(
