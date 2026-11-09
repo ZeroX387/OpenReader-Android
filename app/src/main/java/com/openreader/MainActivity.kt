@@ -947,9 +947,14 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         }
                         val safePosition = charPosition.coerceIn(0, content.length)
                         val readyStarts = starts
-                        val page = (readyStarts?.indexOfLast { it <= safePosition } ?: 0).coerceAtLeast(0)
+                        var lastReadyStarts by remember(book.uri) { mutableStateOf<List<Int>?>(null) }
+                        LaunchedEffect(readyStarts) {
+                            if (readyStarts != null) lastReadyStarts = readyStarts
+                        }
+                        val displayStarts = readyStarts ?: lastReadyStarts
+                        val page = (displayStarts?.indexOfLast { it <= safePosition } ?: 0).coerceAtLeast(0)
                         fun moveTo(index: Int) {
-                            val pages = readyStarts ?: return
+                            val pages = displayStarts ?: return
                             val target = index.coerceIn(0, pages.lastIndex)
                             charPosition = pages[target]
                             // commit() ensures the last page is persisted before Android
@@ -990,8 +995,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                 if (loadedBookUri == book.uri && content.isNotEmpty()) {
                                     // Keep the existing book visible while pagination is recalculated
                                     // after a dialog/keyboard changes the available viewport.
-                                    val pageStart = (readyStarts?.getOrNull(page) ?: 0).coerceIn(0, content.length)
-                                    val pageEnd = (readyStarts?.getOrNull(page + 1) ?: content.length).coerceIn(pageStart, content.length)
+                                    val pageStart = (displayStarts?.getOrNull(page) ?: 0).coerceIn(0, content.length)
+                                    val pageEnd = (displayStarts?.getOrNull(page + 1) ?: content.length).coerceIn(pageStart, content.length)
                                     val pageText = content.substring(pageStart, pageEnd)
                                     Text(
                                         styledPage(pageText),
@@ -1021,7 +1026,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             if (showControls) {
                                 com.openreader.ui.ReaderBottomBar(
                                     pageIndex = page,
-                                    pageCount = if (loadedBookUri == book.uri && content.isNotEmpty()) (readyStarts?.size ?: 1) else 0,
+                                    pageCount = if (loadedBookUri == book.uri && content.isNotEmpty()) (displayStarts?.size ?: 1) else 0,
                                     onPrevious = { moveTo(page - 1) },
                                     onNext = { moveTo(page + 1) },
                                     onSelectPage = { moveTo(it) }
