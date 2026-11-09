@@ -706,7 +706,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
 
                     val density = LocalDensity.current
                     BoxWithConstraints(Modifier.fillMaxSize()) {
-                        val effectiveMargin = 8f
+                        // Keep pagination width identical to the actual 18 dp text insets.
+                        val effectiveMargin = 18f
                         val widthPx = with(density) { (maxWidth - (effectiveMargin * 2).dp).roundToPx() }
                         // Reserve fixed space for controls and page counter so pagination
                         // doesn't change when the controls are shown or hidden.
