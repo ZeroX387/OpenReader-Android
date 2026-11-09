@@ -120,6 +120,7 @@ class SimplePdfActivity : Activity() {
                 MaterialTheme(colorScheme = if (readerThemeState.value == "dark") darkColorScheme() else lightColorScheme()) {
                     com.openreader.ui.ReaderTopBar(
                         title = intent.getStringExtra("book_title") ?: "PDF",
+                        fontSize = fontSize,
                         onBack = { finish() },
                         onBookmark = {
                             val key = "bookmarks_" + progressKey
