@@ -749,17 +749,29 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             textAlign = TextAlign.Justify,
                             platformStyle = PlatformTextStyle(includeFontPadding = true)
                         )
-                        // Pagination depends only on layout inputs, never on the current page.
+                        // Wait until the window dimensions settle (system bars, keyboard,
+                        // split-screen and returning from Recents can all resize the reader).
+                        var stableBounds by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+                        LaunchedEffect(widthPx, heightPx) {
+                            stableBounds = null
+                            kotlinx.coroutines.delay(250)
+                            stableBounds = widthPx to heightPx
+                        }
+                        val boundsStable = stableBounds == (widthPx to heightPx)
+
+                        // Pagination depends only on stable layout inputs, never on the current page.
                         // This keeps page boundaries stable while moving forward or backward.
-                        val starts by key(content, widthPx, heightPx, readerTextStyle) {
-                            produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, readerTextStyle) {
-                                value = withContext(Dispatchers.Default) {
-                                    val measured = textMeasurer.measure(
-                                        text = styledPage(content),
-                                        style = readerTextStyle,
-                                        constraints = Constraints(maxWidth = widthPx)
-                                    )
-                                    pageStarts(measured, heightPx, 0)
+                        val starts by key(content, widthPx, heightPx, readerTextStyle, boundsStable) {
+                            produceState<List<Int>?>(initialValue = null, content, widthPx, heightPx, readerTextStyle, boundsStable) {
+                                if (boundsStable && widthPx > 0 && heightPx > 0) {
+                                    value = withContext(Dispatchers.Default) {
+                                        val measured = textMeasurer.measure(
+                                            text = styledPage(content),
+                                            style = readerTextStyle,
+                                            constraints = Constraints(maxWidth = widthPx)
+                                        )
+                                        pageStarts(measured, heightPx, 0)
+                                    }
                                 }
                             }
                         }
@@ -804,17 +816,21 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     }
                             ) {
                                 if (loadedBookUri == book.uri && content.isNotEmpty()) {
-                                    // Keep the restored page visible while fresh pagination is calculated.
-                                    val pageStart = (readyStarts?.getOrNull(page) ?: safePosition).coerceIn(0, content.length)
-                                    val pageEnd = (readyStarts?.getOrNull(page + 1) ?: (pageStart + 4000)).coerceIn(pageStart, content.length)
-                                    Text(
-                                        styledPage(content.substring(pageStart, pageEnd)),
-                                        color = readerInk,
-                                        style = readerTextStyle,
-                                        modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
-                                    )
-                                    if (readyStarts == null) {
-                                        LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth())
+                                    if (readyStarts != null) {
+                                        val pageStart = readyStarts.getOrNull(page)?.coerceIn(0, content.length) ?: 0
+                                        val pageEnd = (readyStarts.getOrNull(page + 1) ?: content.length).coerceIn(pageStart, content.length)
+                                        Text(
+                                            styledPage(content.substring(pageStart, pageEnd)),
+                                            color = readerInk,
+                                            style = readerTextStyle,
+                                            modifier = Modifier.fillMaxSize().padding(start = 32.dp, top = 32.dp, end = 32.dp, bottom = 16.dp)
+                                        )
+                                    } else {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.align(Alignment.Center).size(24.dp),
+                                            color = readerInk,
+                                            strokeWidth = 2.dp
+                                        )
                                     }
                                 } else {
                                     Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
