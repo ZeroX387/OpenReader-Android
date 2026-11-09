@@ -349,13 +349,20 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var bookmarkPosition by remember { mutableIntStateOf(0) }
     var quoteEditor by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
-    // Keep tracking the library offset even while the reader screen is displayed.
-    // ScrollState itself is saveable, so avoid a second restore that can cause a small jump.
+    // Track the library offset and capture it synchronously before switching screens.
     val libraryScrollState = rememberScrollState()
     var savedLibraryScrollPosition by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(libraryScrollState) {
         snapshotFlow { libraryScrollState.value }.collect { offset ->
             savedLibraryScrollPosition = offset
+        }
+    }
+    LaunchedEffect(currentBookUri) {
+        if (currentBookUri == null) {
+            // Restore only after the library has been laid out with its app bar and system insets.
+            withFrameNanos { }
+            withFrameNanos { }
+            libraryScrollState.scrollTo(savedLibraryScrollPosition)
         }
     }
     var sortMode by remember { mutableStateOf(prefs.getString("sort_mode", "Добавление") ?: "Добавление") }
@@ -512,11 +519,13 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var showWhatsNew by remember { mutableStateOf(prefs.getString("last_seen_version", null) != appVersion) }
 
     BackHandler(enabled = currentBookUri != null && !showReaderSettings && !showWhatsNew) {
+        savedLibraryScrollPosition = libraryScrollState.value
         currentBookUri = null
         content = ""
     }
 
     fun openBook(book: LocalBook) {
+        savedLibraryScrollPosition = libraryScrollState.value
         error = null
         if (book.format == "pdf") {
             context.startActivity(
@@ -889,7 +898,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                     textAlignment = it
                                     prefs.edit().putString("text_alignment", it).apply()
                                 },
-                                onBack = { currentBookUri = null; content = "" },
+                                onBack = { savedLibraryScrollPosition = libraryScrollState.value; currentBookUri = null; content = "" },
                                 onBookmark = {
                                     val key = "bookmarks_" + book.uri.hashCode()
                                     val items = org.json.JSONArray(prefs.getString(key, "[]") ?: "[]")
