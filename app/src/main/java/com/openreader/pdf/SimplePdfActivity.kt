@@ -23,6 +23,9 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.platform.ComposeView
 import android.widget.Toast
 import android.util.LruCache
 import java.util.concurrent.Executors
@@ -54,8 +57,7 @@ class SimplePdfActivity : Activity() {
     private lateinit var pageView: ImageView
     private lateinit var progress: ProgressBar
     private lateinit var bottomBar: LinearLayout
-    private lateinit var topBar: LinearLayout
-    private lateinit var titleLabel: TextView
+    private lateinit var topBar: View
     private lateinit var pageLabel: TextView
     private lateinit var pageSeek: SeekBar
     private lateinit var scaleDetector: ScaleGestureDetector
@@ -90,35 +92,34 @@ class SimplePdfActivity : Activity() {
             setPadding(dp(12), dp(8), dp(12), dp(8))
             setBackgroundColor(0xDD171717.toInt())
         }
-        topBar = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(4), dp(8), dp(4))
-            setBackgroundColor(0xEE075B70.toInt())
+        topBar = ComposeView(this).apply {
+            setContent {
+                MaterialTheme(colorScheme = lightColorScheme()) {
+                    com.openreader.ui.ReaderTopBar(
+                        title = intent.getStringExtra("book_title") ?: "PDF",
+                        onBack = { finish() },
+                        onBookmark = {
+                            val key = "bookmarks_" + progressKey
+                            val saved = progressPrefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
+                            saved.add(currentPage.toString())
+                            progressPrefs.edit().putStringSet(key, saved).apply()
+                            Toast.makeText(this@SimplePdfActivity, "Закладка на странице " + (currentPage + 1), Toast.LENGTH_SHORT).show()
+                        },
+                        onQuotes = {},
+                        onDecreaseText = {},
+                        onSettings = {
+                            Toast.makeText(this@SimplePdfActivity, "Настройки PDF появятся в общем меню чтения", Toast.LENGTH_SHORT).show()
+                        },
+                        onIncreaseText = {},
+                        showTextSizeControls = false,
+                        showQuotesAction = false,
+                        onSearch = {
+                            Toast.makeText(this@SimplePdfActivity, "Поиск по тексту PDF добавим следующим этапом", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
         }
-        titleLabel = TextView(this).apply {
-            text = intent.getStringExtra("book_title") ?: "PDF"
-            setTextColor(Color.WHITE)
-            textSize = 17f
-            maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        topBar.addView(makeButton("‹") { finish() }, LinearLayout.LayoutParams(dp(44), dp(52)))
-        topBar.addView(titleLabel, LinearLayout.LayoutParams(0, dp(52), 1f))
-        topBar.addView(makeButton("🔖") {
-            val key = "bookmarks_" + progressKey
-            val saved = progressPrefs.getStringSet(key, emptySet())?.toMutableSet() ?: mutableSetOf()
-            saved.add(currentPage.toString())
-            progressPrefs.edit().putStringSet(key, saved).apply()
-            Toast.makeText(this, "Закладка на странице " + (currentPage + 1), Toast.LENGTH_SHORT).show()
-        }, LinearLayout.LayoutParams(dp(44), dp(52)))
-        topBar.addView(makeButton("⌕") {
-            Toast.makeText(this, "Поиск по тексту PDF добавим следующим этапом", Toast.LENGTH_SHORT).show()
-        }, LinearLayout.LayoutParams(dp(44), dp(52)))
-        topBar.addView(makeButton("⚙") {
-            Toast.makeText(this, "Настройки PDF появятся в общем меню чтения", Toast.LENGTH_SHORT).show()
-        }, LinearLayout.LayoutParams(dp(44), dp(52)))
 
         pageLabel = TextView(this).apply {
             setTextColor(Color.WHITE)
