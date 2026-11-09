@@ -3,6 +3,7 @@ package com.openreader.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -36,8 +37,8 @@ import androidx.compose.ui.unit.sp
 fun ReaderTopBar(
     title: String,
     fontSize: Float,
-    textAlignment: String,
-    onAlignmentChange: (String) -> Unit,
+    textAlignment: String = "justify",
+    onAlignmentChange: (String) -> Unit = {},
     onBack: () -> Unit,
     onBookmark: () -> Unit,
     onQuotes: () -> Unit,
@@ -88,9 +89,9 @@ fun ReaderTopBar(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    var alignmentMenuExpanded by remember { androidx.compose.runtime.mutableStateOf(false) }
+                    val alignmentMenuExpanded = remember { androidx.compose.runtime.mutableStateOf(false) }
                     Box {
-                        TextButton(onClick = { alignmentMenuExpanded = true }) {
+                        TextButton(onClick = { alignmentMenuExpanded.value = true }) {
                             Text(
                                 when (textAlignment) {
                                     "start" -> "☰ Слева"
@@ -101,8 +102,8 @@ fun ReaderTopBar(
                             )
                         }
                         androidx.compose.material3.DropdownMenu(
-                            expanded = alignmentMenuExpanded,
-                            onDismissRequest = { alignmentMenuExpanded = false }
+                            expanded = alignmentMenuExpanded.value,
+                            onDismissRequest = { alignmentMenuExpanded.value = false }
                         ) {
                             listOf(
                                 "start" to "По левому краю",
@@ -114,7 +115,7 @@ fun ReaderTopBar(
                                     text = { Text(label) },
                                     onClick = {
                                         onAlignmentChange(value)
-                                        alignmentMenuExpanded = false
+                                        alignmentMenuExpanded.value = false
                                     }
                                 )
                             }
