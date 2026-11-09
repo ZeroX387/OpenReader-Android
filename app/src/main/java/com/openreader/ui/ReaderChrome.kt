@@ -88,8 +88,37 @@ fun ReaderTopBar(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = { onAlignmentChange(if (textAlignment == "justify") "start" else "justify") }) {
-                        Text(if (textAlignment == "justify") "☷ По ширине" else "☰ По левому краю")
+                    var alignmentMenuExpanded by remember { androidx.compose.runtime.mutableStateOf(false) }
+                    Box {
+                        TextButton(onClick = { alignmentMenuExpanded = true }) {
+                            Text(
+                                when (textAlignment) {
+                                    "start" -> "☰ Слева"
+                                    "center" -> "☷ По центру"
+                                    "end" -> "☷ Справа"
+                                    else -> "☷ По ширине"
+                                }
+                            )
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = alignmentMenuExpanded,
+                            onDismissRequest = { alignmentMenuExpanded = false }
+                        ) {
+                            listOf(
+                                "start" to "По левому краю",
+                                "center" to "По центру",
+                                "end" to "По правому краю",
+                                "justify" to "По ширине"
+                            ).forEach { (value, label) ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        onAlignmentChange(value)
+                                        alignmentMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = onDecreaseText) { Text("A−") }
