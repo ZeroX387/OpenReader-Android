@@ -1042,7 +1042,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                                         val selected = offset?.let { wordAt(pageText, it) }
                                                         if (selected != null) {
                                                             wordToCorrect = selected
-                                                            correctionPosition = pageStart + offset
+                                                            correctionPosition = pageStart + (offset ?: 0)
                                                             correctionDraft = ""
                                                             wordCorrectionEditMode = false
                                                         }
