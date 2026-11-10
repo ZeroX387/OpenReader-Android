@@ -1320,9 +1320,6 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                 }
                             }
                         }
-                    }
-                }
-            }
                         if (selectedTab == 5) {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1380,6 +1377,9 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             }
                             }
                         }
+                    }
+                }
+            }
             if (currentBookUri == null && libraryTransitioning) {
                 ClosingBookState(closingMessage, appLoadingBackground, appLoadingForeground)
             }
