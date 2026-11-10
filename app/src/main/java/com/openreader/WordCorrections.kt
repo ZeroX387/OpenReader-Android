@@ -7,7 +7,7 @@ import java.io.File
 import java.security.MessageDigest
 
 /** A per-book overlay. The imported/cached source text is never modified. */
-internal data class WordCorrection(val original: String, val replacement: String)
+internal data class WordCorrection(val original: String, val replacement: String, val position: Int = -1)
 
 private fun correctionFile(context: Context, bookUri: String): File {
     val digest = MessageDigest.getInstance("SHA-256")
@@ -25,8 +25,9 @@ internal fun loadWordCorrections(context: Context, bookUri: String): List<WordCo
             val item = array.optJSONObject(index) ?: return@mapNotNull null
             val original = item.optString("original")
             val replacement = item.optString("replacement")
+            val position = item.optInt("position", -1)
             if (original.isBlank() || replacement.isBlank()) null
-            else WordCorrection(original, replacement)
+            else WordCorrection(original, replacement, position)
         }
     }
 } catch (_: Exception) {
@@ -42,7 +43,8 @@ internal fun saveWordCorrections(
     corrections.forEach { correction ->
         array.put(JSONObject()
             .put("original", correction.original)
-            .put("replacement", correction.replacement))
+            .put("replacement", correction.replacement)
+            .put("position", correction.position))
     }
     val target = correctionFile(context, bookUri)
     val temporary = File(target.parentFile, target.name + ".tmp")
