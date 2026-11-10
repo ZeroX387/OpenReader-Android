@@ -1324,6 +1324,10 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 }
             }
                         if (selectedTab == 5) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
                             val allCorrections = books.flatMap { sourceBook ->
                                 loadWordCorrections(context, sourceBook.uri).map { correction ->
                                     sourceBook to correction
@@ -1373,6 +1377,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                         }
                                     }
                                 }
+                            }
                             }
                         }
             if (currentBookUri == null && libraryTransitioning) {
