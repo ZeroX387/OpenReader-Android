@@ -449,6 +449,11 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
     var quoteEditor by remember { mutableStateOf(false) }
     var wordToCorrect by remember { mutableStateOf<String?>(null) }
     var correctionDraft by remember { mutableStateOf("") }
+    var correctionPosition by remember { mutableIntStateOf(-1) }
+    var historyRefresh by remember { mutableIntStateOf(0) }
+    var historyEditingBook by remember { mutableStateOf<LocalBook?>(null) }
+    var historyEditingOriginal by remember { mutableStateOf("") }
+    var historyDraft by remember { mutableStateOf("") }
     var selectedTab by remember { mutableIntStateOf(0) }
     // Keep the library's position stable while the reader changes system-bar insets.
     val libraryScrollState = rememberScrollState()
@@ -864,7 +869,8 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             Triple("★", "Избранное", 1),
                             Triple("▤", "Папки и коллекции", 2),
                             Triple("✓", "Прочитанные", 3),
-                            Triple("", "Закладки и цитаты", 4)
+                            Triple("", "Закладки и цитаты", 4),
+                            Triple("✎", "История исправлений", 5)
                         ).forEach { (symbol, label, index) ->
                             NavigationDrawerItem(
                                 label = { Text(label) },
@@ -1036,6 +1042,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                                         val selected = offset?.let { wordAt(pageText, it) }
                                                         if (selected != null) {
                                                             wordToCorrect = selected
+                                                            correctionPosition = pageStart + offset
                                                             correctionDraft = ""
                                                             wordCorrectionEditMode = false
                                                         }
@@ -1116,7 +1123,7 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            listOf("Моя библиотека", "Избранное", "Папки и коллекции", "Прочитанные книги", "Закладки и цитаты")[selectedTab],
+                            listOf("Моя библиотека", "Избранное", "Папки и коллекции", "Прочитанные книги", "Закладки и цитаты", "История исправлений")[selectedTab],
                             style = MaterialTheme.typography.headlineMedium
                         )
                         if (selectedTab == 0) {
@@ -1316,6 +1323,58 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                     }
                 }
             }
+                        if (selectedTab == 5) {
+                            val allCorrections = books.flatMap { sourceBook ->
+                                loadWordCorrections(context, sourceBook.uri).map { correction ->
+                                    sourceBook to correction
+                                }
+                            }.also { historyRefresh }
+                            Text(
+                                "Исправления, сделанные карандашом. Здесь можно перейти к месту изменения, изменить замену или отменить её.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (allCorrections.isEmpty()) {
+                                Text("Исправлений пока нет. Включи карандаш в книге и коснись слова, которое нужно заменить.")
+                            }
+                            allCorrections.forEach { (sourceBook, correction) ->
+                                Card(modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(sourceBook.title, style = MaterialTheme.typography.titleMedium)
+                                        Text("«${correction.original}» → «${correction.replacement}»", style = MaterialTheme.typography.bodyLarge)
+                                        Text(
+                                            if (correction.position >= 0) "Позиция в книге: ${correction.position}"
+                                            else "Место не сохранено (старое исправление)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            TextButton(
+                                                enabled = correction.position >= 0,
+                                                onClick = {
+                                                    prefs.edit()
+                                                        .putInt("page_char_" + sourceBook.uri.hashCode(), correction.position)
+                                                        .putInt("jump_" + sourceBook.uri.hashCode(), correction.position)
+                                                        .apply()
+                                                    currentBookUri = sourceBook.uri
+                                                }
+                                            ) { Text("К месту") }
+                                            TextButton(onClick = {
+                                                historyEditingBook = sourceBook
+                                                historyEditingOriginal = correction.original
+                                                historyDraft = correction.replacement
+                                            }) { Text("Изменить") }
+                                            TextButton(onClick = {
+                                                val remaining = loadWordCorrections(context, sourceBook.uri)
+                                                    .filterNot { it.original.equals(correction.original, ignoreCase = true) }
+                                                saveWordCorrections(context, sourceBook.uri, remaining)
+                                                historyRefresh++
+                                            }) { Text("Удалить") }
+                                        }
+                                    }
+                                }
+                            }
+                        }
             if (currentBookUri == null && libraryTransitioning) {
                 ClosingBookState(closingMessage, appLoadingBackground, appLoadingForeground)
             }
@@ -1394,12 +1453,14 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             try {
                                 val saved = loadWordCorrections(context, bookUri)
                                 // If the selected word was already corrected, update its original mapping.
-                                val original = saved.firstOrNull {
+                                val previousCorrection = saved.firstOrNull {
                                     it.replacement.equals(selectedWord, ignoreCase = true)
-                                }?.original ?: selectedWord
+                                }
+                                val original = previousCorrection?.original ?: selectedWord
+                                val position = previousCorrection?.position?.takeIf { it >= 0 } ?: correctionPosition
                                 val updated = saved.filterNot {
                                     it.original.equals(original, ignoreCase = true)
-                                } + WordCorrection(original, replacement)
+                                } + WordCorrection(original, replacement, position)
                                 saveWordCorrections(context, bookUri, updated)
                                 content = replaceWholeWord(content, selectedWord, replacement)
                                 ReaderSessionCache.put(bookUri, content)
@@ -1434,6 +1495,48 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                             }) { Text("Удалить исправление") }
                         }
                         TextButton(onClick = { wordToCorrect = null; correctionDraft = "" }) { Text("Отмена") }
+                    }
+                }
+            )
+        }
+        if (historyEditingBook != null) {
+            val targetBook = historyEditingBook!!
+            AlertDialog(
+                onDismissRequest = { historyEditingBook = null; historyDraft = "" },
+                title = { Text("Изменить исправление") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(targetBook.title, style = MaterialTheme.typography.bodySmall)
+                        Text("Исходное слово: «${historyEditingOriginal}»")
+                        OutlinedTextField(
+                            value = historyDraft,
+                            onValueChange = { historyDraft = it },
+                            label = { Text("Новая замена") },
+                            singleLine = true
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = historyDraft.isNotBlank() &&
+                            !historyDraft.trim().equals(historyEditingOriginal, ignoreCase = true),
+                        onClick = {
+                            val current = loadWordCorrections(context, targetBook.uri)
+                            val updated = current.map { item ->
+                                if (item.original.equals(historyEditingOriginal, ignoreCase = true))
+                                    item.copy(replacement = historyDraft.trim())
+                                else item
+                            }
+                            saveWordCorrections(context, targetBook.uri, updated)
+                            historyEditingBook = null
+                            historyDraft = ""
+                            historyRefresh++
+                        }
+                    ) { Text("Сохранить") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { historyEditingBook = null; historyDraft = "" }) {
+                        Text("Отмена")
                     }
                 }
             )
