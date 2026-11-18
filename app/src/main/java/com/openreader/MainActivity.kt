@@ -1169,7 +1169,17 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                                                     }
                                                     var added = 0
                                                     discovered.forEach { item ->
-                                                        val existingIndex = books.indexOfFirst { it.uri == item.uri }
+                                                        val scannedUri = Uri.parse(item.uri)
+                                                        val existingIndex = books.indexOfFirst { existing ->
+                                                            if (existing.uri == item.uri) true else try {
+                                                                val existingUri = Uri.parse(existing.uri)
+                                                                existingUri.authority == scannedUri.authority &&
+                                                                    android.provider.DocumentsContract.getDocumentId(existingUri) ==
+                                                                    android.provider.DocumentsContract.getDocumentId(scannedUri)
+                                                            } catch (_: Exception) {
+                                                                false
+                                                            }
+                                                        }
                                                         if (existingIndex < 0) {
                                                             books.add(
                                                                 LocalBook(
