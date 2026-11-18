@@ -420,6 +420,12 @@ private fun styledPage(pageText: String) = buildAnnotatedString {
 private fun OpenReaderApp(externalBook: Uri? = null) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("openreader", Context.MODE_PRIVATE) }
+    val libraryScope = rememberCoroutineScope()
+    var scanFolders by remember {
+        mutableStateOf((prefs.getStringSet("book_folders", emptySet()) ?: emptySet()).toSet())
+    }
+    var scanningFolders by remember { mutableStateOf(false) }
+    var scanMessage by remember { mutableStateOf("") }
     val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.coerceAtLeast(320)
     val defaultReaderMargin = 8f
     var languageChoice by remember { mutableStateOf(prefs.getString("language", "system") ?: "system") }
@@ -743,6 +749,21 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                 currentBookUri = null
                 content = ""
                 error = if (e is kotlinx.coroutines.TimeoutCancellationException) "PDF загружается слишком долго. Возможно, файл большой или повреждён." else e.message ?: "Не удалось открыть книгу."
+            }
+        }
+    }
+
+    val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                scanFolders = scanFolders + uri.toString()
+                prefs.edit().putStringSet("book_folders", scanFolders.toSet()).apply()
+                scanMessage = "Папка добавлена. Нажмите «Сканировать», чтобы найти книги."
+            } catch (e: Exception) {
+                error = e.message ?: "Не удалось сохранить доступ к папке."
             }
         }
     }
@@ -1129,6 +1150,58 @@ private fun OpenReaderApp(externalBook: Uri? = null) {
                         if (selectedTab == 0) {
                             Button(onClick = { picker.launch(arrayOf("*/*")) }) {
                                 Text("+ Добавить TXT / FB2 / EPUB / PDF / DOCX / MOBI / AZW3")
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { folderPicker.launch(null) }) {
+                                    Text("+ Выбрать папку")
+                                }
+                                Button(
+                                    onClick = {
+                                        if (scanFolders.isEmpty()) {
+                                            scanMessage = "Сначала выберите папку для сканирования."
+                                        } else if (!scanningFolders) {
+                                            libraryScope.launch {
+                                                scanningFolders = true
+                                                scanMessage = "Ищем книги…"
+                                                try {
+                                                    val discovered = withContext(Dispatchers.IO) {
+                                                        scanBookFolders(context, scanFolders)
+                                                    }
+                                                    var added = 0
+                                                    discovered.forEach { item ->
+                                                        val existingIndex = books.indexOfFirst { it.uri == item.uri }
+                                                        if (existingIndex < 0) {
+                                                            books.add(
+                                                                LocalBook(
+                                                                    uri = item.uri,
+                                                                    title = item.title,
+                                                                    format = item.format,
+                                                                    addedAt = System.currentTimeMillis()
+                                                                )
+                                                            )
+                                                            added++
+                                                        }
+                                                    }
+                                                    if (added > 0) saveBooks(context, books)
+                                                    scanMessage = "Найдено: ${discovered.size}. Добавлено новых: $added."
+                                                } catch (e: Exception) {
+                                                    scanMessage = e.message ?: "Не удалось просканировать папки."
+                                                } finally {
+                                                    scanningFolders = false
+                                                }
+                                            }
+                                        }
+                                    },
+                                    enabled = !scanningFolders && scanFolders.isNotEmpty()
+                                ) {
+                                    Text(if (scanningFolders) "Сканирование…" else "Сканировать")
+                                }
+                            }
+                            if (scanFolders.isNotEmpty()) {
+                                Text("Папок для поиска: ${scanFolders.size}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (scanMessage.isNotBlank()) {
+                                Text(scanMessage, style = MaterialTheme.typography.bodySmall)
                             }
                             Text("TXT, FB2, EPUB, PDF, DOCX, MOBI и AZW3: текстовое постраничное чтение.", style = MaterialTheme.typography.bodySmall)
                             if (booksLoaded && books.isEmpty()) {
